@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="portal-token" content="__PORTAL_TOKEN__">
+<title>module template</title>
+<link rel="stylesheet" href="/core.css">
+</head>
+<body>
+<h1>module template</h1>
+<p class="sub">Copy this folder to <code>portal/modules/&lt;YOUR-ID&gt;/</code>, edit
+<code>module.json</code> and this page. The portal picks it up automatically —
+no server restart.</p>
+
+<div id="lc-app"></div>
+
+<script src="/core.js"></script>
+<script>
+"use strict";
+/*
+ * How to build a module:
+ *   1. module.json  — manifest shown on the landing page (see README).
+ *   2. this page    — LanCheck.start({...}) with your check.
+ *
+ * run(ctx) is the only required piece. ctx gives you:
+ *   ctx.cfg       selected preset object (your own JSON schema)
+ *   ctx.log(msg, cls?)     log line into the page log
+ *   ctx.progress(n)        update the progress bar (max = cfg.attempts)
+ *   ctx.report(event, d)   report an event to the operator dashboard
+ *   ctx.aborted()          user pressed Abort
+ *   ctx.expired()          wall-clock cap (cfg.capMin) exceeded
+ *   ctx.tick()             await: yield to the browser (keeps the page alive)
+ *
+ * Return { outcome, detail, html? }:
+ *   outcome: "vulnerable" | "vulnerable-class" | "no-uaf"/"patched" | "aborted" | "unknown"
+ *   detail : JSON-serializable specifics (leaked pointer, version, timing…)
+ *   html    : optional result-panel HTML (else a generic panel is rendered)
+ */
+LanCheck.start({
+  module: "TEMPLATE",
+  intro: '<div class="card"><b>What this checks.</b> Replace me.</div>',
+  presets: {
+    standard: {
+      label: "Standard", blurb: "default", desc: "…",
+      attempts: 100, capMin: 2,
+    },
+  },
+
+  run: async function (ctx) {
+    // ---- example skeleton: replace with the real check ---------------------
+    for (let n = 0; n < ctx.cfg.attempts; ++n) {
+      if (ctx.aborted()) return { outcome: "aborted", detail: { attempt: n } };
+      if (ctx.expired()) break;
+      ctx.progress(n);
+      if (n % 10 === 0) ctx.log("working… " + n);
+      await ctx.tick();
+    }
+    return {
+      outcome: "unknown",
+      detail: { reason: "template — implement the check" },
+      html: '<span class="dim"><b>TEMPLATE</b></span> — skeleton only.',
+    };
+  },
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="portal-token" content="__PORTAL_TOKEN__">
+<title>LAN Device Security Self-Check</title>
+<link rel="stylesheet" href="/core.css">
+</head>
+<body>
+
+<h1>LAN Device Security Self-Check</h1>
+<p class="sub">Modular exploit-verification portal for devices you own. Each check is a
+drop-in module — no server rebuilds, no restart: drop a folder in
+<code>portal/modules/</code> and it appears here.</p>
+
+<div class="card warn">
+  <b>Authorization &amp; scope.</b> Only run these checks on devices you own or are
+  explicitly authorized to test. Every module is proof-level only (pointer leak /
+  primitives) and never escalates to code execution. Open a module on a device, run it,
+  watch the operator dashboard. Ctrl-C the launcher and everything is offline.
+</div>
+
+<h2>Available checks</h2>
+
+<div class="row" style="margin:.4rem 0">
+  <input type="text" id="q" placeholder="filter: CVE id, title, category, fixed version, summary…">
+  <select id="tier">
+    <option value="">all tiers</option>
+    <option value="1">tier 1 — full public PoC</option>
+    <option value="2">tier 2 — reconstructed</option>
+    <option value="3">tier 3 — advisory only</option>
+  </select>
+</div>
+<p class="dim" id="count" style="margin:.2rem 0 .6rem"></p>
+<div id="catalog" class="dim">loading…</div>
+
+<p class="foot">
+  Operator dashboard: <a href="/dashboard">/dashboard</a> (all devices, all modules) ·
+  results: <code>portal/results.jsonl</code> · add modules: <code>portal/modules/</code>
+</p>
+
+<script>
+"use strict";
+(function () {
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function badge(text, cls) {
+    return '<span style="border:1px solid #2c3946;border-radius:6px;padding:0 .4rem;' +
+      'font-size:.72rem;margin-right:.35rem;color:' + (cls || "#8fd0ff") + '">' + esc(text) + "</span>";
+  }
+
+  var TIER_LABEL = {
+    1: "Tier 1 — full public PoC",
+    2: "Tier 2 — reconstructed from public root cause",
+    3: "Tier 3 — advisory only (engine report, no exploit code)"
+  };
+  var TIER_ORDER = [1, 2, 3];
+
+  fetch("/api/modules")
+    .then(function (r) { return r.json(); })
+    .then(function (mods) {
+      var q = document.getElementById("q");
+      var tier = document.getElementById("tier");
+      var box = document.getElementById("catalog");
+      var count = document.getElementById("count");
+      if (!mods.length) {
+        box.textContent = "no modules installed — drop one into portal/modules/";
+        return;
+      }
+      mods.sort(function (a, b) {
+        var ta = a.tier || 3, tb = b.tier || 3;
+        if (ta !== tb) return ta - tb;
+        return String(a.cve || a.id).localeCompare(String(b.cve || b.id));
+      });
+
+      function card(m) {
+        var meta = [
+          m.cve ? badge(m.cve, "#ff9d9d") : "",
+          m.engine ? badge(m.engine) : "",
+          m.severity ? badge(m.severity, "#ffc86b") : "",
+          m.category ? badge(m.category) : "",
+          m.platform ? badge(m.platform) : "",
+        ].join("");
+        return '<div class="card" data-tier="' + (m.tier || 3) + '" data-hay="' +
+          esc([m.id, m.title, m.cve, m.category, m.engine, m.platform, m.summary,
+               m.affected, m.fixed, m.proof].join(" ")).toLowerCase() + '">' +
+          '<h1 style="font-size:1rem;margin:0 0 .3rem">' + esc(m.title) + "</h1>" +
+          '<p style="margin:.2rem 0">' + meta + "</p>" +
+          '<p style="margin:.3rem 0">' + esc(m.summary || "") + "</p>" +
+          (m.affected ? '<p class="dim" style="margin:.3rem 0;font-size:.8rem">Affected: ' +
+            esc(m.affected) + (m.fixed ? " · Fixed: " + esc(m.fixed) : "") + "</p>" : "") +
+          (m.proof ? '<p class="dim" style="margin:.3rem 0;font-size:.8rem">Proof level: ' +
+            esc(m.proof) + "</p>" : "") +
+          '<div class="row" style="margin-top:.6rem">' +
+          '<a href="/modules/' + encodeURIComponent(m.id) + '/" style="text-decoration:none">' +
+          '<button class="primary">Open test</button></a></div></div>';
+      }
+
+      function render() {
+        var needle = q.value.trim().toLowerCase();
+        var wantTier = tier.value;
+        var shown = 0, out = [];
+        var group = null;
+        mods.forEach(function (m) {
+          var t = m.tier || 3;
+          if (wantTier && String(t) !== wantTier) return;
+          var el = document.createElement("div");
+          el.innerHTML = card(m);
+          var hay = el.firstChild.getAttribute("data-hay");
+          if (hay.indexOf(needle) === -1) return;
+          if (t !== group) {
+            if (group !== null) out.push("</div>");
+            group = t;
+            var n = mods.filter(function (x) { return (x.tier || 3) === t; }).length;
+            out.push('<h2>' + esc(TIER_LABEL[t] || ("Tier " + t)) +
+                     ' <span class="dim">(' + n + ")</span></h2><div>");
+          }
+          out.push(el.firstChild.outerHTML);
+          shown++;
+        });
+        if (group !== null) out.push("</div>");
+        box.innerHTML = out.join("") ||
+          '<p class="dim">no module matches that filter.</p>';
+        count.textContent = shown + " of " + mods.length + " modules shown";
+      }
+
+      q.addEventListener("input", render);
+      tier.addEventListener("change", render);
+      render();
+    })
+    .catch(function () {
+      document.getElementById("catalog").textContent =
+        "failed to load module catalog (is the portal running?)";
+    });
+})();
+</script>
+</body>
+</html>

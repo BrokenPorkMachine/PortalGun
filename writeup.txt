@@ -1,0 +1,548 @@
+1
+CVE-2025-43529
+A DFG JIT Compiler StoreBarrierInsertionPhase Bug
+Triggering Use After Free in JavaScriptCore
+Jack Ren
+2
+Contents: Tiered Explanation
+• Vulnerability Summary
+• First Pass: Observable Behavior
+• Simplified PoC triggering UAF
+• Second Pass: GC & Store Barrier
+• Generational GC
+• Incremental Marking
+• Tri-color Invariant
+• Store Barrier
+• Erroneously Omitted Store Barrier
+• Third Pass: JIT SSA Semantics &
+Storage Modeling
+• Insertion Rationale for StoreBarrier
+• GC Escaping vs. Non-escaping Objects
+• SSA & Phi Node
+• Virtual Storage Slot & Upsilon Node
+• Semantic Gap between JIT Compiler &
+GC and Its Solution: VSS
+• Root Cause: Missed Transitive GC
+Escaping Propagation
+3
+Vulnerability Summary
+• A phase in the DFG JIT compiler, StoreBarrierInsertionPhase,
+erroneously omits the insertion of a StoreBarrier.
+• The missing StoreBarrier allows a live object to be prematurely
+freed by concurrent GC under a race condition, resulting in a useafter-free.
+4
+First Pass:
+Observable Behavior
+5
+Simplified PoC triggering UAF
+let A = { p0: 0x41414141 }; // Old Space Object
+function jitme(flag) {
+// BB#1
+let a = { p0: 13.37 }; // New Space Object, got UAFed
+let b = { p0: 0x42424242 }; // New Space Object
+let f;
+if (flag) {
+// BB#2
+f = b;
+// - Upsilon(f, ^b): VirtualStorageSlot(Phi(f)) = b
+// Wrong Analysis: `b` isn't marked as GC escaping
+// Fixed Analysis: `b` is marked as GC escaping, transitively via Phi(f)
+} else {
+// BB#3
+f = 1.1; // d
+// - Upsilon(f, ^d): VirtualStorageSlot(Phi(f)) = d
+// Non-cell, irrelevant for StoreBarrier
+}
+// BB#4
+// - Phi(f, ^b from BB#2, ^d from BB#3): VirtualStorageSlot(Phi(f))
+A.p0 = f;
+// Expected Analysis: `f` GC escapes, when `f == b`, the store may create Black(A) -> White(b)
+// - StoreBarrier(A)
+b.p0 = a;
+// Wrong Analysis: `b` treated as GC non-escaping, stores to `b` considered barrier-free
+// - ---StoreBarrier(b)--- (Omitted in vulnerable version)
+// Fixed Analysis: `b` GC escapes (reachable from old `A`), store may create Black(b) -> White(a)
+// - +++StoreBarrier(b)+++
+}
+Old Space
+New Space
+A
+b a
+The incremental
+marking fails to
+observe the reference
+to object a, causing it
+to remain unmarked
+and be incorrectly
+reclaimed.
+6
+Second Pass:
+GC & Store Barrier
+What causes object a to remain unmarked and be incorrectly reclaimed?
+7
+Generational GC
+• Insight: Object lifetime exhibits a strong generational bias.
+• Most objects become garbage shortly after allocation.
+• Objects that survive early collections tend to persist.
+• Generational Heap: Old Space & New (Young) Space.
+Old Space New Space
+Global Object
+Global Object
+Local Object
+Local Object
+Local Object
+Local Object
+GC Root
+Stack Slot Stack Slot Register Register
+8
+Mutate
+Young Generation GC Strategy
+• New Space: Copying (Scavenging) GC
+• Low object survival rate; Low copying overhead
+• Common implementation: Monolithic STW (Stop The World)
+• The mutator stops when GC starts and won't resume until GC finishes.
+From Space
+Local Object
+Local Object
+Local Object
+Local Object
+To Space
+Local Object
+Local Object
+GC Root
+Reachability Analysis
+Copy
+Copy Reachable
+Unreachable
+Time
+Mutate GC
+Monolithic Stop-the-world GC
+9
+Old Generation GC Strategy: Incremental
+• Old Space: Mark–Sweep (Mark–Compact) GC
+• High object survival rate; High GC overhead
+• Common implementation: Incremental & Concurrent
+• Incremental & Concurrent GC are adopted to reduce user-perceived pause times.
+Incremental Stop-the-world GC Time
+Incremental Concurrent GC Time
+Mutate Mark Sweep Sync Point
+10
+Old Generation GC Strategy: Marking
+• Old Space: Mark–Sweep (Mark–Compact) GC
+• Mark -> Sweep -> Compact (Optional, when needed)
+• Mark: Initially, all object are white (unmarked). After marking, reachable
+objects become black.
+Old Space
+Object A
+Object C
+Old Space
+Object A
+Object D
+Object B
+Object C
+Reachable Unreachable
+Old Space
+Object A
+Object D
+Object B
+Object C
+Old Space
+Object A
+Object D
+Object B
+Object C
+Mark Sweep Compact
+11
+Incremental Marking
+• Incremental marking maintains
+a worklist to temporarily hold
+those objects that are marked
+live but whose outgoing
+references have not yet been
+scanned.
+• How is object in worklist
+represented in GC?
+• Color(obj) = Grey
+• Pseudo-code of Marking:
+1. while (!worklist.empty()) {
+2. let obj = worklist.dequeue();
+3. foreach (let refObj in obj) {
+4. if Color(refObj) == White {
+5. worklist.enqueue(refObj);
+6. }
+7. }
+8. Color(obj) = Black;
+9. }
+12
+Incremental Marking
+• How is object in worklist represented in GC?
+• Color(obj) = Grey
+• Pseudo-code of Marking:
+1. while (!worklist.empty()) {
+2. let obj = worklist.dequeue();
+3. foreach (let refObj in obj) {
+4. if Color(refObj) == White {
+5. worklist.enqueue(refObj);
+6. }
+7. }
+8. Color(obj) = Black;
+9. }
+• Pseudo-code of Marking:
+1. while (AnyGreyObj.exists()) {
+2. let obj = GetAGreyObj();
+3. foreach (let refObj in obj) {
+4. if Color(refObj) == White {
+5. Color(obj) = Grey;
+6. }
+7. }
+8. Color(obj) = Black;
+9. }
+13
+Tri-color Invariant
+• Let's review the color state of an object:
+White: Not marked yet (liveness not yet established)
+Grey: Marked as reachable but whose outgoing references have not yet
+been scanned
+Black: Marked as reachable and fully scanned
+• Tri-color Invariant: Black -> White
+• A white object may not have been discovered yet.
+• If a black object points to a white object, the white object may be missed
+by the marker.
+• The white object could be incorrectly reclaimed while still being reachable.
+• => Potential Use After Free
+• Takeaway: Black -> White => Potential Use After Free
+14
+Store Barrier
+• Motivation: Prevent Black -> White from happening.
+• Typical Example: o1.p = o2
+• PutByOffset(o1, o2, "p")
+• StoreBarrier(o1)
+• StoreBarrier(o1) notifies the GC that o1 may need to be
+rescanned due to a newly introduced reference.
+• Common Implementation: Color(o1) = Grey
+15
+Erroneously Omitted Store Barrier
+let A = { p0: 0x41414141 }; // Old Space Object
+function jitme(flag) {
+// BB#1
+let a = { p0: 13.37 }; // New Space Object, got UAFed
+let b = { p0: 0x42424242 }; // New Space Object
+let f;
+if (flag) {
+// BB#2
+f = b;
+// - Upsilon(f, ^b): VirtualStorageSlot(Phi(f)) = b
+// Wrong Analysis: `b` isn't marked as GC escaping
+// Fixed Analysis: `b` is marked as GC escaping, transitively via Phi(f)
+} else {
+// BB#3
+f = 1.1; // d
+// - Upsilon(f, ^d): VirtualStorageSlot(Phi(f)) = d
+// Non-cell, irrelevant for StoreBarrier
+}
+// BB#4
+// - Phi(f, ^b from BB#2, ^d from BB#3): VirtualStorageSlot(Phi(f))
+A.p0 = f;
+// Expected Analysis: `f` GC escapes, when `f == b`, the store may create Black(A) -> White(b)
+// - StoreBarrier(A)
+b.p0 = a;
+// Wrong Analysis: `b` treated as GC non-escaping, stores to `b` considered barrier-free
+// - ---StoreBarrier(b)--- (Omitted in vulnerable version)
+// Fixed Analysis: `b` GC escapes (reachable from old `A`), store may create Black(b) -> White(a)
+// - +++StoreBarrier(b)+++
+}
+Old Space
+New Space
+A
+b a
+DFG JIT compiler fails
+to emit StoreBarrier
+to object b, causing a
+possible Black(b) ->
+White(a) reference
+edge hence UAF.
+16
+Third Pass: JIT SSA
+Semantics & Storage
+Modeling
+What causes the StoreBarrier to be erroneously omitted?
+17
+Insertion Rationale for StoreBarrier
+• One commonly used heuristic for inserting a StoreBarrier
+when establising a points-to relationship is whether the pointee
+object is considered GC escaping.
+1. var g = {v: 1}; // Old Space
+2. func f() {
+3. let l1 = {v: 2}; // New Space
+4. let l2 = {}; // New Space
+5. g.v = l2;
+6. // StoreBarrier(g)
+7. }
+1. var g = {v: 1}; // Old Space
+2. func f() {
+3. let l1 = {v: 2}; // New Space
+4. let l2 = {}; // New Space
+5. l1.v = l2;
+6. // None
+7. }
+GC Non-escaping l2 GC Escaping l2
+18
+GC Escaping vs. Non-escaping Objects
+• This notion of GC escaping is distinct from traditional compiler escape analysis.
+• Here, GC escape refers to whether a heap object becomes reachable beyond the
+allocation context in which it was created, especially across GC observation
+boundaries such as generational heap and incremental marking phases.
+1. var g = {v: 1}; // Old Space
+2. func f() {
+3. let l1 = {v: 2}; // New Space
+4. let l2 = {}; // New Space
+5. g.v = l2;
+6. // StoreBarrier(g)
+7. }
+1. var g = {v: 1}; // Old Space
+2. func f() {
+3. let l1 = {v: 2}; // New Space
+4. let l2 = {}; // New Space
+5. l1.v = l2;
+6. // None
+7. }
+GC Non-escaping l2 GC Escaping l2
+• l2 is considered GC non-escaping in the left figure because the newly introduced
+reference doesn't change its reachability across generational boundaries.
+• l2 is considered GC escaping in the right figure because the newly introduced reference
+makes it reachable from Old Space.
+19
+GC Escaping vs. Non-escaping Objects
+• GC escape refers to whether a heap object becomes reachable beyond the
+allocation context in which it was created, especially across GC observation
+boundaries such as generational heap and incremental marking phases.
+1. var g = {v: 1}; // Old Space
+2. func f() {
+3. let l1 = {v: 2}; // New Space
+4. let l2 = {}; // New Space
+5. g.v = l1;
+6. // StoreBarrier(g) -> l1 may become Black
+7. l1.v = l2;
+8. // StoreBarrier(l1)
+9. }
+GC Escaping l2
+• l2 is considered GC escaping because the newly introduced reference possibly makes
+the white colored l2 reachable from the black colored l1.
+20
+SSA: Static Single Assignment
+• Motivation: An optimized IR designed for compiler optimizations.
+• Each variable is assigned exactly once.
+• Different versions of a variable are distinguished by indices.
+Pseudo-code:
+1. v = 1
+2. v = 2
+3. r = v + v
+Pseudo-IR:
+1. v1 = 1
+2. v2 = 2
+3. r1 = v2 + v2
+21
+Phi Node
+• How to represent variable when control flow merges?
+• Phi Node: Merge variable values from different predecessor basic block (BB).
+• r1 = Phi(v2, v3): r1 can be either v2
+from BB2 or v3
+from BB3.
+Pseudo-code:
+1. v = 0
+2. if (cond) {
+3. v = 1
+4. } else {
+5. v = 2
+6. }
+7. r = v
+Pseudo-IR:
+1. v1 = 0
+2. Branch(cond, 3, 5)
+3. v2 = 1
+4. Jump(6)
+5. v3 = 2
+6. r1 = Phi(v2, v3)
+Control Flow Graph
+v1 = 0
+Branch(cond)
+v2 = 1 v3 = 2
+r1 = Phi(v2, v3)
+BB1
+BB2 BB3
+BB4
+22
+Virtual Storage Slot
+• In SSA, values are explicit, but their storage locations are not.
+• While SSA is well-suited for reasoning about value flow, compiler
+optimizations that affect memory correctness must also reason about where
+values are stored, especially across control-flow merges.
+• To precisely capture this notion, we introduce Virtual Storage Slot (VSS) -
+an abstract representation of a logical heap storage location into which SSA
+values may be written.
+Pseudo-IR:
+1. v1 = 0
+2. Branch(cond, 3, 5)
+3. v2 = 1
+4. Jump(6)
+5. v3 = 2
+6. r1 = Phi(v2, v3)
+Control Flow Graph
+v1 = 0
+Branch(cond)
+v2 = 1 v3 = 2
+r1 = Phi(v2, v3)
+BB1
+BB2 BB3
+BB4
+VSS
+S0
+N/A
+S0
+N/A
+S0
+S0
+• Different SSA values
+may share the same
+VSS because they
+aren't simultaneously
+live.
+23
+Upsilon Node
+• To reduce the implementation complexity of Phi nodes, Upsilon nodes
+are introduced to represent writes of SSA values into a Virtual Storage
+Slot along specific control-flow edges in JSC.
+let A = { p0: 0x41414141 };
+function jitme(flag) {
+// BB#1
+let a = { p0: 13.37 };
+let b = { p0: 0x42424242 };
+let f;
+if (flag) {
+// BB#2
+f = b;
+// - Upsilon(f, ^b): VirtualStorageSlot(Phi(f)) = b
+} else {
+// BB#3
+f = 1.1; // d
+// - Upsilon(f, ^d): VirtualStorageSlot(Phi(f)) = d
+}
+// BB#4
+// - Phi(f, ^b from BB#2, ^d from BB#3): VirtualStorageSlot(Phi(f))
+A.p0 = f;
+b.p0 = a;
+}
+24
+Semantic Gap between JIT Compiler & GC
+• Recap: One commonly used heuristic for inserting a StoreBarrier
+when establishing a points-to relationship is whether the pointee
+object is considered GC escaping.
+• However, the JIT compiler operates only on abstract SSA values,
+control flow, and IR-level abstractions, rather than concrete runtime
+objects and their GC escaping attributes.
+• As result, GC escaping must be approximated from each abstract
+SSA value instead of being directly observed at runtime.
+• The vulnerability arises precisely from this semantic mismatch
+between SSA-level reasoning and GC’s runtime observation model.
+• Takeaway: Runtime objects aren't in a 1:1 correspondence with SSA
+values alone.
+25
+Virtual Storage Slot: Bridging SSA and GC Semantics
+• If SSA values do not uniquely correspond to runtime objects, what does?
+• Virtual Storage Slot (VSS).
+• A unique runtime object resides in a fixed VSS, regardless of how many SSA
+values represent it.
+• Runtime GC observes storage locations, not SSA values.
+• GC escaping attribute should be made per Virtual Storage Slot instead
+of per SSA value.
+26
+GC escaping attribute Should Be Made
+per Virtual Storage Slot
+let A = { p0: 0x41414141 }; // Old Space Object
+function jitme(flag) {
+// BB#1
+let a = { p0: 13.37 }; // New Space Object, got UAFed
+let b = { p0: 0x42424242 }; // New Space Object
+let f;
+if (flag) {
+// BB#2
+f = b;
+// - Upsilon(f, ^b): VirtualStorageSlot(Phi(f)) = b
+// Fixed Analysis: `b` is marked as GC escaping, transitively via Phi(f)
+} else {
+// BB#3
+f = 1.1; // d
+// - Upsilon(f, ^d): VirtualStorageSlot(Phi(f)) = d
+// Non-cell, irrelevant for StoreBarrier
+}
+// BB#4
+// - Phi(f, ^b from BB#2, ^d from BB#3): VirtualStorageSlot(Phi(f))
+A.p0 = f;
+// Expected Analysis: `f` GC escapes, when `f == b`, the store may create Black(A) -> White(b)
+// - StoreBarrier(A)
+b.p0 = a;
+// Fixed Analysis: `b` GC escapes (reachable from old `A`), store may create Black(b) -> White(a)
+// - +++StoreBarrier(b)+++
+}
+1️⃣
+2️⃣
+3️⃣
+1. f GC escapes because
+• A point-to relationship
+A.p0 = f is established,
+• A resides in Old Space,
+• b resides in New Space.
+2. Since f and b share the
+same VSS, b must also be
+considered GC escaping.
+3. As b GC escapes, a
+StoreBarrier must be
+inserted for b.p0 = a.
+27
+Missed Transitive GC Escaping Propagation
+• However, without a
+Virtual Storage Slot, the
+JIT compiler must
+propagate the GC
+escaping attribute along
+SSA value edges.
+• Due to the missing
+transitive propagation of
+the GC escaping attribute
+from the Phi node to its
+Upsilon node, b isn't
+marked as GC escaping.
+• As a result, stores to b
+considered barrier-free,
+which may create a
+Black(b) -> White(a)
+edge, leading to a useafter-free.
+let A = { p0: 0x41414141 }; // Old Space Object
+function jitme(flag) {
+// BB#1
+let a = { p0: 13.37 }; // New Space Object, got UAFed
+let b = { p0: 0x42424242 }; // New Space Object
+let f;
+if (flag) {
+// BB#2
+f = b;
+// - Upsilon(f, ^b): VirtualStorageSlot(Phi(f)) = b
+// Wrong Analysis: `b` isn't marked as GC escaping
+// Fixed Analysis: `b` is marked as GC escaping, transitively via Phi(f)
+} else {
+// BB#3
+f = 1.1; // d
+// - Upsilon(f, ^d): VirtualStorageSlot(Phi(f)) = d
+// Non-cell, irrelevant for StoreBarrier
+}
+// BB#4
+// - Phi(f, ^b from BB#2, ^d from BB#3): VirtualStorageSlot(Phi(f))
+A.p0 = f;
+// Expected Analysis: `f` GC escapes, when `f == b`, the store may create Black(A) -> White(b)
+// - StoreBarrier(A)
+b.p0 = a;
+// Wrong Analysis: `b` treated as GC non-escaping, stores to `b` considered barrier-free
+// - ---StoreBarrier(b)--- (Omitted in vulnerable version)
+// Fixed Analysis: `b` GC escapes (reachable from old `A`), store may create Black(b) -> White(a)
+// - +++StoreBarrier(b)+++
+}

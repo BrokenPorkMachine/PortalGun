@@ -1,0 +1,14 @@
+{
+  "id": "TEMPLATE",
+  "title": "New check (template)",
+  "cve": "CVE-XXXX-XXXXX",
+  "engine": "target engine",
+  "platform": "target platforms",
+  "category": "category",
+  "severity": "severity",
+  "summary": "One or two sentences: what this check verifies and how.",
+  "affected": "versions / builds affected",
+  "fixed": "fix reference, if any",
+  "proof": "what a successful run demonstrates",
+  "presets": ["standard"]
+}
