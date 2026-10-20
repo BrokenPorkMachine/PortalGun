@@ -6,10 +6,19 @@
 #
 #   ./start.sh [port]        # default port 8080
 #   PORT=8080 ./start.sh
+#   ./start.sh --help        # usage only
 #
 # Then open the printed URL on each device you want to test.
 # Ctrl-C stops everything.
 set -eu
+
+usage() {
+    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+case "${1:-}" in
+    -h|--help) usage; exit 0;;
+esac
 
 cd "$(dirname "$0")/../portal"
 PORT="${1:-${PORT:-8080}}"
@@ -56,9 +65,19 @@ for IF in en0 en1 en5 en6; do
 done
 [ -n "$LAN_IP" ] || LAN_IP="<this-mac-ip>"
 
+# --- module count (for the banner) ------------------------------------------
+MODULE_COUNT=0
+for d in modules/*/; do
+    case "${d#modules/}" in
+        _*) continue;;
+    esac
+    [ -f "modules/${d#modules/}module.json" ] || continue
+    MODULE_COUNT=$((MODULE_COUNT + 1))
+done
+
 cat <<EOF
 
-  PortalGun — CVE-2025-43529  (on-demand, macOS)
+  PortalGun — $MODULE_COUNT exploit-verification modules  (on-demand, macOS)
 
   Portal   : http://$HOSTNAME_LOCAL:$PORT/
   Dashboard: http://$HOSTNAME_LOCAL:$PORT/dashboard    (operator view, all devices)

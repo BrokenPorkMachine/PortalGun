@@ -137,7 +137,7 @@ PortalGun.start({
 |------|-------------|-------|
 | 1 | Full public PoC with working exploit | 5 |
 | 2 | Reconstructed probe from public root cause analysis | 108 |
-| 3 | Advisory-only (engine fingerprint) | 0 (all upgraded) |
+| 3 | Advisory-only (engine fingerprint) | 2 |
 
 ## Security & Scope
 
@@ -165,19 +165,21 @@ Access `/dashboard` for real-time operator view:
 - CVE-2025-43529: WebKit DFG JIT use-after-free (StoreBarrierInsertionPhase)
 
 ### Tier 2 Categories (108 modules)
-- **Use-after-free**: 20+ probes (crash oracle)
-- **Memory corruption crashes**: 30+ probes (crash oracle)
-- **Out-of-bounds access**: 10+ probes (crash oracle)
-- **Type confusion**: 8+ probes
-- **CSP bypass**: 5+ probes
-- **Sandbox escape**: 5+ probes
-- **Info disclosure**: 10+ probes
-- **Race conditions**: 5+ probes
-- **UI spoofing**: 3+ probes
-- **History sniffing**: 2+ probes
-- **Logic errors**: 3+ probes
-- **DoS/resource exhaustion**: 3+ probes
-- **Universal XSS**: 2+ probes
+- **Memory corruption / crash**: 78 probes (crash oracle)
+- **Use-after-free / GC**: 18 probes
+- **JIT / compiler bugs**: 15 probes
+- **Out-of-bounds access / write**: 7 probes
+- **History sniffing / privacy**: 7 probes
+- **Type confusion**: 6 probes
+- **Info disclosure / leak**: 6 probes
+- **Race condition / TOCTOU**: 5 probes
+- **CSP bypass**: 4 probes
+- **Sandbox escape / bypass**: 4 probes
+- **Logic errors**: 2 probes
+- **DoS / resource exhaustion**: 2 probes
+- **Universal XSS**: 2 probes
+- **SOP bypass**: 2 probes
+- **UI spoofing / phishing**: 1 probe
 
 ## Requirements
 
