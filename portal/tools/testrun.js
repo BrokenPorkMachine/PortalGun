@@ -43,6 +43,13 @@ const sandbox = {
 };
 sandbox.window = sandbox;
 sandbox.globalThis = sandbox;
+sandbox.window._listeners = Object.create(null);
+sandbox.window.addEventListener = (type, fn) => {
+  (sandbox.window._listeners[type] ||= []).push(fn);
+};
+sandbox.window.removeEventListener = (type, fn) => {
+  sandbox.window._listeners[type] = (sandbox.window._listeners[type] || []).filter((x) => x !== fn);
+};
 sandbox.document = {
   readyState: "loading",
   querySelector: () => ({ content: "" }),
@@ -116,7 +123,7 @@ for (const src of srcOrder) {
 }
 
 const opts = [];
-sandbox.LanCheck = { start: (o) => opts.push(o) };
+sandbox.PortalGun = { start: (o) => opts.push(o) };
 vm.createContext(sandbox);
 const blocks = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
 vm.runInContext(blocks.join("\n;\n"), sandbox, { filename: id + "/index.html" });

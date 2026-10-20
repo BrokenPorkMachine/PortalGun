@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate tier-3 (advisory) modules for the LAN self-check portal.
+Generate tier-3 (advisory) modules for PortalGun.
 
 Tier 3 = CVE is publicly disclosed with advisory metadata, but there is no
 public client-side PoC. The module is therefore an honest information page
@@ -421,7 +421,7 @@ PAGE = """<!doctype html>
  * metadata for the fleet dashboard and links the public references; it runs
  * no exploit code.
  */
-LanCheck.start({
+PortalGun.start({
   module: "__ID__",
   intro:
     '<div class="card"><b>__CVE__</b> — __TITLE__<br>' +

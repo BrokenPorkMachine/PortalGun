@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate tier-1 / tier-2 modules for the LAN self-check portal.
+Generate tier-1 / tier-2 modules for PortalGun.
 
 Tier 1 = a public client-side PoC exists. The module runs the *detection* part
 of that PoC and nothing else — pointer leak, silent trigger, or crash oracle.
@@ -1457,7 +1457,7 @@ __EXTRA__
 /*
  * __TIERNOTE__
  */
-LanCheck.start({
+PortalGun.start({
   module: "__ID__",
   crashOracle: __CRASHORACLE__,
   __INTRO__

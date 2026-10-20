@@ -1,4 +1,4 @@
-# Captive-portal LAN self-check — modular edition
+# PortalGun — modular edition
 
 One endpoint that tests **every device on your own network** against a catalog
 of security checks. Each check is a **drop-in module**: copy the template into
@@ -29,7 +29,7 @@ portal/
 │                             reports, operator dashboard + crash-oracle verdicts
 ├── site/
 │   ├── index.html            landing page — lists installed modules as cards
-│   ├── core.js               LanCheck runtime: consent/token/presets/log/runner
+│   ├── core.js               PortalGun runtime: consent/token/presets/log/runner
 │   │                         + crash oracle (localStorage marker + heartbeat)
 │   └── core.css              shared dark theme
 ├── modules/
@@ -44,14 +44,18 @@ portal/
 │   ├── mkpoc-modules.py     generate tier-1/2 modules from public PoC sources
 │   ├── checkmodules.js      parse + structural check of a generated module page
 │   └── testrun.js           execute a module's run(ctx) against a stubbed DOM
-├── lab/                      optional always-on Linux gateway (hostapd/dnsmasq/nginx)
-└── mac/                      on-demand macOS launcher (./start.sh, Ctrl-C to stop)
+├── lab/                      (moved) Linux gateway configs now live in ../linux/
+└── mac/                      (moved) macOS launcher now lives in ../mac/
 ```
+
+Platform files moved to the repo root: `../linux/` (persistent captive gateway +
+enforcement) and `../mac/` (on-demand launcher). This folder is now purely the
+shared, cross-platform portal server + modules + site.
 
 ## Crash oracle (tier-1 crash PoCs)
 
 For bugs whose public PoC is "crash the renderer", the page dying *is* the
-signal. `LanCheck.start({ crashOracle: true })` gives a module:
+signal. `PortalGun.start({ crashOracle: true })` gives a module:
 
 - a localStorage marker (`lc-crash-<module>`): left as `running` if the
   renderer died mid-run; the **next load** of that module page reports
@@ -66,12 +70,12 @@ The dashboard paints both signals red.
 ```sh
 cp -r portal/modules/_template portal/modules/CVE-YYYY-NNNNN
 $EDITOR portal/modules/CVE-YYYY-NNNNN/module.json   # title, CVE, engine, affected…
-$EDITOR portal/modules/CVE-YYYY-NNNNN/index.html    # LanCheck.start({ run: … })
+$EDITOR portal/modules/CVE-YYYY-NNNNN/index.html    # PortalGun.start({ run: … })
 # refresh the landing page. that's it — the catalog rescans every request.
 ```
 
 Rules: folder name = module id (prefix `_` hides a module), `module.json` must
-be valid JSON, check lives in `index.html` via `LanCheck.start({ module,
+be valid JSON, check lives in `index.html` via `PortalGun.start({ module,
 presets, run })`. Add `"tier": 1|2|3` to the manifest.
 
 ### Manifest fields (`module.json`)

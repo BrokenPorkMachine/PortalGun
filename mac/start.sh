@@ -1,5 +1,5 @@
 #!/bin/sh
-# On-demand launcher for the LAN device self-check portal (macOS).
+# On-demand launcher for PortalGun (macOS).
 #
 # The portal is OFFLINE unless this script is running. Nothing is installed,
 # no DHCP/DNS/NAT is configured — nothing is forced through the Mac.
@@ -11,7 +11,7 @@
 # Ctrl-C stops everything.
 set -eu
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../portal"
 PORT="${1:-${PORT:-8080}}"
 
 # --- checks ---------------------------------------------------------------
@@ -21,7 +21,20 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 # --- portal token (gates who can fire the test) ---------------------------
-TOKEN_FILE="${LANCHECK_TOKEN_FILE:-$HOME/.lancheck_token}"
+# Token file lives in ~/.portalg_token. The legacy ~/.lancheck_token is still
+# honoured if present, so an existing setup keeps working after the rename.
+if [ -n "${PORTALGUN_TOKEN_FILE:-}" ]; then
+    TOKEN_FILE="$PORTALGUN_TOKEN_FILE"
+elif [ -n "${LANCHECK_TOKEN_FILE:-}" ]; then
+    TOKEN_FILE="$LANCHECK_TOKEN_FILE"
+elif [ -s "$HOME/.portalg_token" ]; then
+    TOKEN_FILE="$HOME/.portalg_token"
+elif [ -s "$HOME/.lancheck_token" ]; then
+    TOKEN_FILE="$HOME/.lancheck_token"
+else
+    # nothing exists yet -> create the new one
+    TOKEN_FILE="$HOME/.portalg_token"
+fi
 if [ -n "${PORTAL_TOKEN:-}" ]; then
     TOKEN="$PORTAL_TOKEN"
 elif [ -s "$TOKEN_FILE" ]; then
@@ -45,7 +58,7 @@ done
 
 cat <<EOF
 
-  LAN Device Security Self-Check — CVE-2025-43529  (on-demand, macOS)
+  PortalGun — CVE-2025-43529  (on-demand, macOS)
 
   Portal   : http://$HOSTNAME_LOCAL:$PORT/
   Dashboard: http://$HOSTNAME_LOCAL:$PORT/dashboard    (operator view, all devices)

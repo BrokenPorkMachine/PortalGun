@@ -1,19 +1,19 @@
 /*
- * LanCheck core — shared runtime for all check modules.
+ * PortalGun core — shared runtime for all check modules.
  *
  * A module page only needs:
  *   <html><head>…<link rel=stylesheet href="/core.css">
  *     <meta name="portal-token" content="__PORTAL_TOKEN__">…</head>
  *   <body><div id="lc-app"></div>
  *   <script src="/core.js"></script>
- *   <script>LanCheck.start({ module: "CVE-…", presets: {...}, run: async (ctx) => ({…}) })</script>
+ *   <script>PortalGun.start({ module: "CVE-…", presets: {...}, run: async (ctx) => ({…}) })</script>
  *   </body></html>
  *
  * The core renders the consent gate, token field, preset picker, run/abort
  * buttons, progress bar, log and result panel, and takes care of reporting
  * every event to the portal server. The module only implements the check.
  */
-window.LanCheck = (function () {
+window.PortalGun = (function () {
   "use strict";
 
   var TOKEN = (document.querySelector('meta[name="portal-token"]') || { content: "" }).content || "";
@@ -81,6 +81,23 @@ window.LanCheck = (function () {
     if (outcome === "vulnerable" || outcome === "vulnerable-class") return "bad";
     if (outcome === "no-uaf" || outcome === "patched" || outcome === "aborted") return "ok";
     return "dim";
+  }
+
+  // A negative tier-2 probe is evidence about this run, not proof that the
+  // device is patched. Keep that distinction in the report so the dashboard
+  // can tell "no signal" from an actually completed patch oracle.
+  function assessment(outcome, detail) {
+    if (outcome === "vulnerable" || outcome === "vulnerable-class")
+      return { status: "vulnerable", confidence: "direct-signal" };
+    if (outcome === "patched" || outcome === "no-uaf")
+      return { status: "patched", confidence: "direct-signal" };
+    if (outcome === "aborted")
+      return { status: "incomplete", confidence: "none" };
+    if (outcome === "unknown")
+      return { status: "indeterminate", confidence: "negative-observation",
+        reason: (detail && (detail.reason || detail.result || detail.note)) ||
+          "probe completed without a decisive oracle" };
+    return { status: "error", confidence: "none" };
   }
 
   /* Crash oracle: reproduces many WebKit bugs = the renderer dies. We detect
@@ -194,7 +211,9 @@ window.LanCheck = (function () {
             ? res.html
             : '<span class="' + outcomeClass(outcome) + '"><b>' + esc(outcome).toUpperCase() +
               "</b></span>" + (detail ? " — " + esc(JSON.stringify(detail)) : "");
-          report("result", { outcome: outcome, detail: detail, module: opts.module });
+          var verdict = assessment(outcome, detail);
+          report("result", { outcome: outcome, detail: detail, module: opts.module,
+            assessment: verdict });
         } catch (e) {
           log("[!] error: " + e, "bad");
           el("lc-result").innerHTML = '<span class="bad"><b>ERROR</b></span> — ' + esc(String(e));

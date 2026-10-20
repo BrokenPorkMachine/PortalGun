@@ -1,4 +1,4 @@
-# CVE Exploit Verification Portal
+# PortalGun
 
 A modular, tiered exploit verification portal for WebKit/JavaScriptCore vulnerabilities. Designed for security researchers to safely test vulnerability primitives on their own devices.
 
@@ -14,7 +14,7 @@ A modular, tiered exploit verification portal for WebKit/JavaScriptCore vulnerab
 - **Consent Gate**: Users must explicitly consent before running tests
 - **Per-CVE Presets**: Configurable test parameters per module
 - **macOS On-Demand Launcher**: `./mac/start.sh` for ephemeral testing
-- **Linux Gateway Configs**: `portal/lab/` for persistent deployments
+- **Linux Gateway Configs**: `./linux/` for persistent deployments
 - **Operator Dashboard**: Real-time device/module telemetry at `/dashboard`
 
 ## Quick Start
@@ -29,11 +29,16 @@ export PORTAL_TOKEN="your-secure-token"
 
 ### Linux (Persistent Gateway)
 ```bash
-export PORTAL_TOKEN="your-secure-token"
-cd portal/lab
-# Configure hostapd/dnsmasq/nginx per lab/README.md
-sudo ./setup-gateway.sh
+# Preview first (no root, no changes):
+./linux/setup-gateway.sh --dry-run
+
+# On the gateway box — deploys the portal, starts AP/DHCP/nginx, applies enforcement:
+sudo ./linux/setup-gateway.sh
+sudo ./linux/setup-gateway.sh --status
+sudo ./linux/setup-gateway.sh --stop
 ```
+See `linux/README.md` for the captive-portal design (redirect + forward-drop +
+sign-in lease) and `linux/setup-enforcement.sh` to apply only the firewall half.
 
 ### Manual Server
 ```bash
@@ -49,25 +54,33 @@ python3 server.py
 portal/
 ├── server.py              # Main HTTP server with module discovery
 ├── site/
-│   ├── core.js           # LanCheck runtime (consent, crash oracle, reporting)
+│   ├── core.js           # PortalGun runtime (consent, crash oracle, reporting)
 │   ├── core.css          # Shared dark theme
 │   └── index.html        # Landing page (module catalog)
 ├── modules/              # Drop-in CVE modules (auto-discovered)
 │   ├── CVE-YYYY-NNNNN/
 │   │   ├── module.json   # Metadata: tier, title, CVE, presets, source
-│   │   └── index.html    # Probe logic using LanCheck.start()
+│   │   └── index.html    # Probe logic using PortalGun.start()
 │   └── _template/        # Template for new modules
-├── mac/
-│   ├── start.sh          # macOS on-demand launcher
-│   └── README-macos.md   # macOS usage guide
-├── lab/                  # Linux gateway configs
-│   ├── hostapd.conf      # WiFi AP config
-│   ├── dnsmasq.conf      # DHCP/DNS config
-│   ├── nginx.conf        # Reverse proxy config
-│   └── README.md         # Lab setup guide
 ├── results.jsonl         # Append-only test results
 └── tools/
     └── mkadvisory-modules.py  # Generates tier-3 modules from advisory data
+```
+
+Platform-specific files live at the top level:
+
+```
+linux/                    # everything Linux (persistent captive gateway)
+├── setup-gateway.sh      # one-shot bring-up (deploy portal + AP + DHCP + nginx + enforcement)
+├── setup-enforcement.sh  # firewall half: redirect, forward-drop, NAT, captive-auth helper
+├── hostapd.conf          # WiFi AP config
+├── dnsmasq.conf          # DHCP + real DNS (never wildcarded)
+├── nginx.conf            # port-80 front door / probe redirect
+└── README.md             # gateway design + verification
+
+mac/                      # everything macOS (on-demand launcher)
+├── start.sh              # ephemeral launcher (Ctrl-C = offline)
+└── README-macos.md       # macOS usage guide
 ```
 
 ## Module Development
@@ -103,7 +116,7 @@ cp -r portal/modules/_template portal/modules/CVE-YYYY-NNNNN
 ```html
 <script src="/core.js"></script>
 <script>
-LanCheck.start({
+PortalGun.start({
   module: "CVE-YYYY-NNNNN",
   crashOracle: true,  // Enable crash detection
   intro: '<div class="card">What this checks...</div>',

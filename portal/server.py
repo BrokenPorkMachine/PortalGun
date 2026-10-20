@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CVE LAN self-check portal — modular edition.
+PortalGun — modular CVE exploit-verification portal.
 
 Generic harness: a landing catalog plus drop-in check modules in
 portal/modules/<id>/module.json + index.html. The module list is re-scanned on
@@ -16,6 +16,7 @@ from firing a check.
 import argparse
 import json
 import os
+import subprocess
 import threading
 import time
 from collections import deque
@@ -34,6 +35,15 @@ LOCK = threading.Lock()
 EVENTS = deque(maxlen=20000)  # in-memory tail for the dashboard
 SEQ = [0]                     # monotonic: fmt_ts truncates to whole seconds,
                               # so ts alone cannot order same-second events
+
+# --- gateway enforcement (optional) ----------------------------------------
+# Set CAPTIVE_AUTH to the helper installed by linux/setup-enforcement.sh
+# to enable POST /login. Unset by default so the portal stays a plain HTTP
+# server on a laptop, with no path to touching a firewall.
+CAPTIVE_AUTH = os.environ.get("CAPTIVE_AUTH", "")
+CAPTIVE_AUTH_ENABLED = bool(CAPTIVE_AUTH) and os.path.isfile(CAPTIVE_AUTH) \
+    and os.access(CAPTIVE_AUTH, os.X_OK)
+LEASE_SECONDS = int(os.environ.get("PORTAL_LEASE_SECONDS", "3600"))
 
 
 def fmt_ts(ms):
@@ -99,7 +109,7 @@ CONTENT_TYPES = {
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "LANCheck/2.0"
+    server_version = "PortalGun/2.0"
     protocol_version = "HTTP/1.1"
 
     def _send(self, code, payload, ctype="text/html; charset=utf-8", inject=False):
@@ -152,12 +162,24 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, json.dumps(load_modules()), "application/json")
         elif path == "/healthz":
             self._send(200, "ok", "text/plain")
+        elif path == "/login":
+            self._send(200, login_page(), inject=True)
         elif path == "/dashboard":
             self._send(200, dashboard())
         elif path == "/api/devices":
             self._send(200, json.dumps(devices()), "application/json")
         elif path == "/report" or path == "/reload":
             self._send(405, "POST only", "text/plain")
+        elif path in ("/hotspot-detect.html", "/generate_204",
+                      "/connecttest.txt", "/ncsi.txt"):
+            # Captive-network assistant probes (macOS/iOS, Android, Windows).
+            # A 302 to the portal makes the OS open its sign-in sheet; answering
+            # with the OS' *expected* success content would hide the portal.
+            self.send_response(302)
+            self.send_header("Location", "/")
+            self.send_header("content-length", "0")
+            self.send_header("cache-control", "no-store")
+            self.end_headers()
         elif path.startswith("/modules/"):
             self._serve_module(path[len("/modules/"):])
         else:
@@ -213,7 +235,11 @@ class Handler(BaseHTTPRequestHandler):
 
     # ----------------------------------------------------------------- POST
     def do_POST(self):
-        if urlparse(self.path).path != "/report":
+        path = urlparse(self.path).path
+        if path == "/login":
+            self._do_login()
+            return
+        if path != "/report":
             self._send(404, "not found", "text/plain")
             return
         try:
@@ -247,6 +273,67 @@ class Handler(BaseHTTPRequestHandler):
             print("REJECTED report (bad token) from %s for module %s" % (ip, event["module"]))
         self._send(200 if token_ok else 403, "ok" if token_ok else "bad token", "text/plain")
 
+    def _do_login(self):
+        """Authorize the requesting client through the gateway firewall.
+
+        This is the server half of setup-enforcement.sh step 6: on success we
+        run `captive-auth add <client-ip>`, which grants that IP internet
+        access in the nftables `auth` set. Only meaningful on the gateway box
+        (CAPTIVE_AUTH must point at the helper); elsewhere it is disabled.
+        """
+        ip = self.client_address[0]
+        if not CAPTIVE_AUTH_ENABLED:
+            self._send(503, "login disabled: no gateway enforcement configured "
+                            "(set CAPTIVE_AUTH or run on the gateway)", "text/plain")
+            return
+        try:
+            length = int(self.headers.get("content-length", "0"))
+            data = json.loads(self.rfile.read(length) or b"{}")
+        except Exception:
+            self._send(400, "bad json", "text/plain")
+            return
+
+        # Same gate as /report: a passerby must not be able to self-authorize.
+        if not TOKEN or data.get("token") != TOKEN:
+            print("REJECTED login (bad token) from %s" % ip)
+            self._send(403, "bad token", "text/plain")
+            return
+
+        lease = data.get("lease", LEASE_SECONDS)
+        try:
+            lease = int(lease)
+        except (TypeError, ValueError):
+            lease = LEASE_SECONDS
+        lease = max(60, min(lease, 86400))
+
+        try:
+            proc = subprocess.run([CAPTIVE_AUTH, "add", ip, str(lease)],
+                                  capture_output=True, text=True, timeout=10)
+        except Exception as exc:
+            print("login helper failed for %s: %s" % (ip, exc))
+            self._send(500, "authorization helper failed", "text/plain")
+            return
+        if proc.returncode != 0:
+            print("login helper rc=%d for %s: %s"
+                  % (proc.returncode, ip, (proc.stderr or "").strip()))
+            self._send(500, "authorization failed", "text/plain")
+            return
+
+        note({
+            "ts": fmt_ts(int(time.time() * 1000)),
+            "epoch": int(time.time() * 1000),
+            "ip": ip,
+            "module": "-",
+            "event": "login",
+            "consent": True,
+            "token_ok": True,
+            "token_rejected": False,
+            "detail": {"lease": lease},
+            "ua": (self.headers.get("user-agent") or "")[:300],
+        })
+        print("authorized %s for %ds" % (ip, lease))
+        self._send(200, "ok", "text/plain")
+
     def log_message(self, fmt, *args):
         msg = fmt % args
         if any(code in msg for code in (" 404 ", " 403 ", " 400 ", " 500 ")):
@@ -264,6 +351,26 @@ def verdict_of(ev):
     if ev.get("event") == "crash":
         return "crashed (previous run died)"
     return d.get("verdict") or d.get("outcome") or ev.get("event") or "?"
+
+
+def assessment_of(ev):
+    """Return the machine-readable assessment and a short operator reason."""
+    d = ev.get("detail") or {}
+    if not isinstance(d, dict):
+        return {"status": "unknown", "confidence": "none", "reason": "no detail"}
+    a = d.get("assessment")
+    if isinstance(a, dict):
+        return a
+    outcome = d.get("outcome") or ev.get("event")
+    if outcome in ("vulnerable", "vulnerable-class"):
+        return {"status": "vulnerable", "confidence": "direct-signal"}
+    if outcome in ("patched", "no-uaf"):
+        return {"status": "patched", "confidence": "direct-signal"}
+    if outcome == "unknown":
+        return {"status": "indeterminate", "confidence": "negative-observation",
+                "reason": d.get("reason") or d.get("result") or d.get("note") or
+                          "no decisive oracle"}
+    return {"status": "incomplete", "confidence": "none"}
 
 
 def staleness_verdict(ev):
@@ -305,6 +412,7 @@ def devices():
             "ip": ev["ip"],
             "last_seen": ev["ts"],
             "verdict": staleness_verdict(ev) or verdict_of(ev),
+            "assessment": assessment_of(ev),
             "addrof": addrof_of(ev),
             "consent": ev["consent"],
             "token_ok": ev["token_ok"],
@@ -323,26 +431,84 @@ def dashboard():
         v = str(d["verdict"])
         cls = "bad" if (v in ("vulnerable", "vulnerable-class") or v.startswith("crashed")) else \
               "ok" if v in ("no-uaf", "patched", "aborted") else "dim"
+        assessment = d.get("assessment") or {}
+        reason = assessment.get("reason", "")
+        evidence = assessment.get("status", "")
+        if reason:
+            evidence += " — " + reason
         rows.append(
             f"<tr><td>{esc(d['module'])}</td><td>{esc(d['ip'])}</td>"
             f"<td class='{cls}'>{esc(v)}</td><td>{esc(d['addrof'])}</td>"
             f"<td>{'yes' if d['consent'] else 'NO'}</td>"
-            f"<td>{esc(d['last_seen'])}</td><td>{esc(d['ua'])}</td></tr>"
+            f"<td>{esc(d['last_seen'])}</td><td>{esc(evidence)}</td><td>{esc(d['ua'])}</td></tr>"
         )
     modules = " · ".join(f"{m['id']} ({m.get('title','')})" for m in load_modules()) or "none"
     return f"""<!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>LAN check dashboard</title>
+<title>PortalGun dashboard</title>
 <link rel=stylesheet href="/core.css">
 </head><body>
-<h1>LAN device security self-check — devices seen</h1>
+<h1>PortalGun — devices seen</h1>
 <p class=sub>Scoped to devices owned/authorized on this network.
 Modules loaded: {esc(modules)}</p>
 <table><tr><th>Module</th><th>IP</th><th>Latest verdict</th><th>addrof</th>
-<th>consent</th><th>Last seen</th><th>UA</th></tr>
-{''.join(rows) if rows else '<tr><td colspan=7 class=dim>no devices yet</td></tr>'}
+<th>consent</th><th>Last seen</th><th>Evidence</th><th>UA</th></tr>
+{''.join(rows) if rows else '<tr><td colspan=8 class=dim>no devices yet</td></tr>'}
 </table>
 <p><a href="/">back to the catalog</a></p>
+</body></html>"""
+
+
+def login_page():
+    """The captive portal sign-in page.
+
+    Served on the gateway at /login (and shown by the OS sheet, since probes
+    redirect to /). Submitting posts the portal token to /login, which runs the
+    captive-auth helper to authorize this client's IP.
+    """
+    if CAPTIVE_AUTH_ENABLED:
+        state = ("<p class=ok>Gateway enforcement is active. Signing in grants "
+                 "this device internet access for a limited lease.</p>")
+    else:
+        state = ("<p class=dim>Gateway enforcement is not configured on this "
+                 "host, so sign-in is disabled. To enable it, run "
+                 "<code>linux/setup-enforcement.sh</code> on the gateway "
+                 "and start the server with "
+                 "<code>CAPTIVE_AUTH=/usr/local/sbin/captive-auth</code>.</p>")
+    return f"""<!doctype html><html><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name="portal-token" content="__PORTAL_TOKEN__">
+<title>Network sign-in</title>
+<link rel=stylesheet href="/core.css">
+</head><body>
+<h1>Network sign-in</h1>
+{state}
+<form id=login>
+  <label>Access code<br><input id=code type=password autocomplete=off></label>
+  <button type=submit {'disabled' if not CAPTIVE_AUTH_ENABLED else ''}>Connect</button>
+</form>
+<p id=msg class=sub></p>
+<script>
+(function() {{
+  var tok = (document.querySelector('meta[name=portal-token]') || {{}}).content || '';
+  var form = document.getElementById('login');
+  var msg = document.getElementById('msg');
+  form.addEventListener('submit', function(ev) {{
+    ev.preventDefault();
+    var code = document.getElementById('code').value || tok;
+    msg.textContent = 'Authorizing…';
+    fetch('/login', {{
+      method: 'POST',
+      headers: {{'content-type': 'application/json'}},
+      body: JSON.stringify({{token: code}})
+    }}).then(function(r) {{
+      if (r.ok) {{ msg.textContent = 'Connected — you can close this page.'; }}
+      else {{ msg.textContent = 'Failed (' + r.status + '): ' + (r.status === 403 ? 'wrong access code' : 'not enabled here'); }}
+    }}).catch(function(e) {{ msg.textContent = 'Error: ' + e; }});
+  }});
+}})();
+</script>
+<p><a href="/">continue to the PortalGun catalog</a></p>
 </body></html>"""
 
 
@@ -354,8 +520,15 @@ def main():
         print("WARNING: PORTAL_TOKEN not set — reports are still recorded, but the "
               "token gate cannot reject unauthenticated runs. Set PORTAL_TOKEN.")
     print("modules: " + ", ".join(m["id"] for m in load_modules()))
+    if CAPTIVE_AUTH_ENABLED:
+        print(f"enforcement: ON — POST /login authorizes clients via {CAPTIVE_AUTH} "
+              f"(lease {LEASE_SECONDS}s)")
+    else:
+        print("enforcement: off — /login disabled (set CAPTIVE_AUTH to the "
+              "captive-auth helper to enable)")
     print(f"portal serving on :{args.port}  (catalog: http://<host>:{args.port}/  "
-          f"dashboard: http://<host>:{args.port}/dashboard)")
+          f"dashboard: http://<host>:{args.port}/dashboard  "
+          f"login: http://<host>:{args.port}/login)")
     ThreadingHTTPServer(("0.0.0.0", args.port), Handler).serve_forever()
 
 

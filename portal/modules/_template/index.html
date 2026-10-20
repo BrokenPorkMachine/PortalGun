@@ -21,7 +21,7 @@ no server restart.</p>
 /*
  * How to build a module:
  *   1. module.json  — manifest shown on the landing page (see README).
- *   2. this page    — LanCheck.start({...}) with your check.
+ *   2. this page    — PortalGun.start({...}) with your check.
  *
  * run(ctx) is the only required piece. ctx gives you:
  *   ctx.cfg       selected preset object (your own JSON schema)
@@ -37,7 +37,7 @@ no server restart.</p>
  *   detail : JSON-serializable specifics (leaked pointer, version, timing…)
  *   html    : optional result-panel HTML (else a generic panel is rendered)
  */
-LanCheck.start({
+PortalGun.start({
   module: "TEMPLATE",
   intro: '<div class="card"><b>What this checks.</b> Replace me.</div>',
   presets: {

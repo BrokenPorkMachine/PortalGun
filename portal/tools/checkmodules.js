@@ -1,6 +1,6 @@
 // Syntax-check every generated module page: extract the inline <script> blocks,
 // stub the DOM bits they touch, and make sure the whole thing parses AND that
-// LanCheck.start() is called with the expected shape.
+// PortalGun.start() is called with the expected shape.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -64,7 +64,7 @@ for (const id of ids) {
   const seen = [];
   const sandbox = stubs(id);
   sandbox.window = sandbox;
-  sandbox.LanCheck = { start: (opts) => seen.push(opts) };
+  sandbox.PortalGun = { start: (opts) => seen.push(opts) };
   sandbox.globalThis = sandbox;
 
   let ok = true, note = "";
@@ -72,7 +72,7 @@ for (const id of ids) {
     vm.createContext(sandbox);
     vm.runInContext(src, sandbox, { filename: id + "/index.html" });
   } catch (e) { ok = false; note = "RUN ERROR: " + e.message; }
-  if (ok && seen.length !== 1) { ok = false; note = "LanCheck.start called " + seen.length + " times"; }
+  if (ok && seen.length !== 1) { ok = false; note = "PortalGun.start called " + seen.length + " times"; }
   if (ok) {
     const o = seen[0];
     const problems = [];
