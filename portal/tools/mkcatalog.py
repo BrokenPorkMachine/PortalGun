@@ -89,6 +89,38 @@ def build(mods):
     }
 
 
+def committed():
+    """Load the catalog.json that is actually on disk, or None if absent."""
+    if not os.path.isfile(CATALOG):
+        return None
+    with open(CATALOG, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def drift(built, have):
+    """Compare the freshly built catalog against the committed one."""
+    if have is None:
+        return ["catalog.json is missing — run: python3 tools/mkcatalog.py"]
+    bad = []
+    if have.get("totals") != built["totals"]:
+        bad.append("catalog totals %s != disk %s"
+                   % (have.get("totals"), built["totals"]))
+    ht = {t: {x["id"] for x in v.get("modules", [])}
+          for t, v in have.get("tiers", {}).items()}
+    bt = {t: {x["id"] for x in v.get("modules", [])}
+          for t, v in built["tiers"].items()}
+    for t in sorted(set(ht) | set(bt)):
+        missing = sorted(bt.get(t, set()) - ht.get(t, set()))
+        extra = sorted(ht.get(t, set()) - bt.get(t, set()))
+        if missing:
+            bad.append("tier %s: on disk but not in catalog: %s"
+                       % (t, ", ".join(missing)))
+        if extra:
+            bad.append("tier %s: in catalog but not on disk: %s"
+                       % (t, ", ".join(extra)))
+    return bad
+
+
 def problems(mods, cat):
     bad = []
     # 1. catalog totals must match disk
@@ -150,12 +182,15 @@ def main():
 
     if args.check:
         bad = problems(mods, cat)
+        bad += drift(cat, committed())
         for b in bad:
             print("  DRIFT:", b)
         print("%s: %d modules, tiers %s"
               % ("FAIL" if bad else "OK", len(mods),
                  ", ".join("%s=%d" % (k, v["count"])
                            for k, v in sorted(cat["tiers"].items()))))
+        if bad:
+            print("  fix: python3 tools/mkcatalog.py")
         return 1 if bad else 0
 
     with open(CATALOG, "w", encoding="utf-8") as fh:

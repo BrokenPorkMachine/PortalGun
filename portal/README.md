@@ -3,7 +3,7 @@
 One endpoint that tests **every device on your own network** against a catalog
 of security checks. Each check is a **drop-in module**: copy the template into
 `portal/modules/`, fill in a manifest + a page, and it shows up on the landing
-page — **no server rebuild, no restart**. 110 modules are installed (see
+page — **no server rebuild, no restart**. 115 modules are installed (see
 catalog). The catalog page has a text + tier filter once the count gets long.
 
 ## Module tiers

@@ -7,8 +7,8 @@ A modular, tiered exploit verification portal for WebKit/JavaScriptCore vulnerab
 - **Modular Architecture**: Drop-in CVE modules in `portal/modules/` with auto-discovery (no server restart)
 - **Three-Tier System**:
   - Tier 1: Full public PoC (5 modules)
-  - Tier 2: Reconstructed probes from public root cause analysis (126+ modules)
-  - Tier 3: Advisory-only engine fingerprint pages (0 remaining - all upgraded)
+  - Tier 2: Reconstructed probes from public root cause analysis (108 modules)
+  - Tier 3: Advisory-only engine fingerprint pages (2 modules)
 - **Crash Oracle**: localStorage marker + 1Hz heartbeat detects renderer crashes
 - **Token-Gated Reporting**: `PORTAL_TOKEN` environment variable protects report endpoint
 - **Consent Gate**: Users must explicitly consent before running tests
@@ -136,7 +136,7 @@ PortalGun.start({
 | Tier | Description | Count |
 |------|-------------|-------|
 | 1 | Full public PoC with working exploit | 5 |
-| 2 | Reconstructed probe from public root cause analysis | 126+ |
+| 2 | Reconstructed probe from public root cause analysis | 108 |
 | 3 | Advisory-only (engine fingerprint) | 0 (all upgraded) |
 
 ## Security & Scope
@@ -164,7 +164,7 @@ Access `/dashboard` for real-time operator view:
 - CVE-2025-14174: ANGLE Metal staging buffer OOB write
 - CVE-2025-43529: WebKit DFG JIT use-after-free (StoreBarrierInsertionPhase)
 
-### Tier 2 Categories (126+ modules)
+### Tier 2 Categories (108 modules)
 - **Use-after-free**: 20+ probes (crash oracle)
 - **Memory corruption crashes**: 30+ probes (crash oracle)
 - **Out-of-bounds access**: 10+ probes (crash oracle)

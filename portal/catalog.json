@@ -2,33 +2,18 @@
   "generated_by": "portal/tools/mkcatalog.py",
   "module_root": "portal/modules",
   "totals": {
-    "modules": 111,
+    "modules": 115,
     "by_tier": {
-      "1": 11,
-      "2": 3,
-      "3": 97
+      "1": 5,
+      "2": 108,
+      "3": 2
     }
   },
   "tiers": {
     "1": {
       "name": "public PoC exists — detection stage only",
-      "count": 11,
+      "count": 5,
       "modules": [
-        {
-          "id": "CVE-2016-4622",
-          "title": "Array.prototype.slice fastSlice TOCTOU → OOB read (addrof oracle)",
-          "engine": "JavaScriptCore (WebKit)",
-          "category": "JIT-free runtime bug / OOB read",
-          "severity": "critical (CVSS 9.3, 2016)",
-          "oracle": "isVulnerable() returns true: the OOB slot holds a valid JSObject pointer, so addrof works. Clean NaN = patched.",
-          "affected": "Safari before 9.1.2, iOS before 9.3.3, tvOS before 9.2.2 (2016)",
-          "fixed": "WebKit Jul 2016 — every engine released since 2017 is unaffected",
-          "presets": [
-            "oracle"
-          ],
-          "source": "https://github.com/saelo/jscpwn (writeup: phrack.com/papers/attacking_javascript_engines.html)",
-          "crashOracle": false
-        },
         {
           "id": "CVE-2018-4441",
           "title": "JSArray::unshiftCountWithArrayStorage OOB clear (splice)",
@@ -43,21 +28,6 @@
           ],
           "source": "https://bugs.chromium.org/p/project-zero/issues/detail?id=1685 (writeup: devilx86.github.io/writeups/CVE-2018-4441)",
           "crashOracle": true
-        },
-        {
-          "id": "CVE-2019-8601",
-          "title": "DFG compileNewArrayWithSpread integer overflow → oversized butterfly",
-          "engine": "JavaScriptCore (WebKit, DFG JIT)",
-          "category": "JIT-free runtime bug / OOB R/W",
-          "severity": "critical (Pwn2Own 2018, Fluoacetate)",
-          "oracle": "allocated butterfly is orders of magnitude smaller than the reported array length → the mismatch the OOB read/write relies on is present.",
-          "affected": "Safari < 12.1.1, iOS < 12.3, macOS < 10.14.5 (2019)",
-          "fixed": "WebKit 2019 integer-overflow guard in emitAllocateButterfly",
-          "presets": [
-            "overflow"
-          ],
-          "source": "https://github.com/BadAccess11/CVE-2019-8601 (analysis: zerodayinitiative.com/blog/2019/11/25/diving-deep-into-a-pwn2own-winning-webkit-bug)",
-          "crashOracle": false
         },
         {
           "id": "CVE-2020-9802",
@@ -76,49 +46,18 @@
         },
         {
           "id": "CVE-2022-22620",
-          "title": "PopStateEvent use-after-free → object address leak",
-          "engine": "WebKit (history / DOM events)",
-          "category": "JIT-free runtime bug / UAF info leak",
-          "severity": "high (CVSS 8.8, Project Zero)",
-          "oracle": "a setTimeout callback receives a value that decodes to a live JSObject pointer (tagged 0x0002xxxxxxxxxxxx pattern) instead of the double it was passed",
-          "affected": "Safari < 15.4, iOS/iPadOS < 15.3.1, macOS < 12.2.1; PoC runs on webkitgtk-2.34.3",
-          "fixed": "WebKit 2022 — PopStateEvent refcount corrected",
+          "title": "Safari PopStateEvent use-after-free (Zombie) infoleak",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / DOM / history API",
+          "severity": "high (actively exploited ITW per Google Project Zero)",
+          "oracle": "object address leak via UAF (alerts leaked pointer); no code execution in this module",
+          "affected": "Safari < 15.5; iOS < 15.5; WebKitGTK < 2.36",
+          "fixed": "WebKitGTK 2.36; Safari/iOS 15.5 (2022)",
           "presets": [
-            "light",
-            "standard"
+            "classic"
           ],
-          "source": "https://github.com/springsec/CVE-2022-22620 (RCA: googleprojectzero.github.io/0days-in-the-wild/0day-RCAs/2022/CVE-2022-22620.html)",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2023-28205",
-          "title": "structured-clone Map/Date use-after-free (crash oracle)",
-          "engine": "WebKit (JavaScriptCore / serialization)",
-          "category": "UAF (structured clone)",
-          "severity": "high (CVSS 8.8, exploited ITW)",
-          "oracle": "renderer death mid-run (crash oracle) → vulnerable. All clones walked without touching freed memory → patched.",
-          "affected": "Safari < 16.4.1, iOS/iPadOS < 15.7.5 / 16.4.1, PS5 WebKit (WebKit-613.1.17.1)",
-          "fixed": "WebKit commit c9880de4a28b9a64a5e1d0513dc245d61a2e6ddb (bug 245193)",
-          "presets": [
-            "trigger"
-          ],
-          "source": "https://github.com/ntfargo/uaf-2023-28205",
+          "source": "https://github.com/springsec/CVE-2022-22620 (adapted from Google Project Zero)",
           "crashOracle": true
-        },
-        {
-          "id": "CVE-2023-41993",
-          "title": "JSC structure confusion via accessor/plain-polymorphic read",
-          "engine": "JavaScriptCore (WebKit, DFG JIT)",
-          "category": "JIT-free runtime bug / type confusion",
-          "severity": "critical (CVE-2023-41993, exploited ITW)",
-          "oracle": "get_getterSetter() hands back the accessor where the primitive belongs — a structure confusion, observable as a typeof mismatch",
-          "affected": "Safari < 16.6, iOS/iPadOS < 16.6, macOS < 13.5 (2023)",
-          "fixed": "WebKit commit 08d5d17c766ffc7ca6a7c833c5720eb71b427784 (Apple HT213926)",
-          "presets": [
-            "confusion"
-          ],
-          "source": "https://github.com/0x06060606/CVE-2023-41993 (original PoC: po6ix/POC-for-CVE-2023-41993)",
-          "crashOracle": false
         },
         {
           "id": "CVE-2025-14174",
@@ -136,21 +75,6 @@
           "crashOracle": true
         },
         {
-          "id": "CVE-2025-24201",
-          "title": "WebGL capability validation OOB write (PRIMITIVE_RESTART_FIXED_INDEX)",
-          "engine": "WebKit WebGL (ANGLE path)",
-          "category": "graphics / OOB write",
-          "severity": "critical (CVSS 10.0, exploited ITW)",
-          "oracle": "gl.enable(0x8D69) on a WebGL1 context returns NO_ERROR → the dangerous capability path is live. A GL_INVALID_ENUM = patched.",
-          "affected": "Safari < 18.3.1, iOS/iPadOS < 18.3.2 / 16.7.11 / 15.8.4, macOS < 15.3.2 (WebKitGTK per CVE)",
-          "fixed": "Safari 18.3.1 / iOS 18.3.2 / macOS 15.3.2 (supplementary fix for an attack blocked in iOS 17.2)",
-          "presets": [
-            "probe"
-          ],
-          "source": "https://github.com/The-Maxu/CVE-2025-24201-WebKit-Vulnerability-Detector-PoC-",
-          "crashOracle": false
-        },
-        {
           "id": "CVE-2025-43529",
           "title": "WebKit DFG JIT use-after-free (StoreBarrierInsertionPhase)",
           "engine": "JavaScriptCore (WebKit)",
@@ -166,42 +90,74 @@
           ],
           "source": "WebKit commit b21a503 (bug 302502); writeup in ../writeup.txt",
           "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-20643",
-          "title": "Navigation API canIntercept cross-origin gate (SOP bypass)",
-          "engine": "WebKit (WebCore Navigation API)",
-          "category": "security policy / Same Origin Policy bypass",
-          "severity": "high (cross-origin authorization)",
-          "oracle": "NavigateEvent.canIntercept === true for a same-site/cross-origin target",
-          "affected": "WebKitGTK/WPE before 2.52.1; iOS 26.3.1 restore build 23D8133",
-          "fixed": "WebKitGTK 2.52.1; iOS 26.3.1(a) build 23D771330a",
-          "presets": [
-            "gate"
-          ],
-          "source": "https://github.com/0xjohnnydev/WebKit-NavigationAPI-SOP-Bypass (binary diff verified)",
-          "crashOracle": false
         }
       ]
     },
     "2": {
       "name": "root cause public — reconstructed probe",
-      "count": 3,
+      "count": 108,
       "modules": [
+        {
+          "id": "CVE-2016-4622",
+          "title": "Array.prototype.slice fastSlice TOCTOU → OOB read (addrof oracle)",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "TOCTOU / OOB read",
+          "severity": "critical (CVSS 9.3, 2016)",
+          "oracle": "isVulnerable() returns true: the OOB slot holds a valid JSObject pointer, so addrof works. Clean NaN = patched.",
+          "affected": "Safari before 9.1.2, iOS before 9.3.3, tvOS before 9.2.2 (2016)",
+          "fixed": "WebKit Jul 2016 — every engine released since 2017 is unaffected",
+          "presets": [
+            "oracle"
+          ],
+          "source": "https://github.com/saelo/jscpwn (writeup: phrack.com/papers/attacking_javascript_engines.html)",
+          "crashOracle": false
+        },
         {
           "id": "CVE-2018-4233",
           "title": "RegExp JIT lastIndex side-effect type confusion (value divergence)",
-          "engine": "JavaScriptCore (WebKit, DFG/regexp JIT)",
-          "category": "JIT-free runtime bug / type confusion",
-          "severity": "high (CVSS 8.8, Pwn2Own 2018)",
-          "oracle": "a lastIndex callback that mutates the regexp changes the match outcome in the compiled tier but not the interpreter: the side-effect-free assumption is broken",
-          "affected": "Safari < 11.1.1, iOS < 11.4 (2018)",
-          "fixed": "WebKit 2018 — regexp match no longer treated as side-effect-free",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "JIT type confusion / RegExp",
+          "severity": "critical (CVSS 9.3, 2018)",
+          "oracle": "value divergence between JIT and interpreter on RegExp.lastIndex setter",
+          "affected": "Safari before 12.1.1, iOS before 12.1.2 (2018)",
+          "fixed": "WebKit Jan 2019 — every engine released since 2019 is unaffected",
           "presets": [
-            "divergence"
+            "oracle",
+            "deep-warmup",
+            "shallow"
           ],
-          "source": "https://github.com/saelo/cve-2018-4233 (analysis: saelo, Pwn2Own 2018)",
+          "source": "https://bugs.webkit.org/show_bug.cgi?id=181867 (devilx86 writeup)",
           "crashOracle": false
+        },
+        {
+          "id": "CVE-2019-8601",
+          "title": "DFG compileNewArrayWithSpread integer overflow → oversized butterfly",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "JIT integer overflow / butterfly overflow",
+          "severity": "critical (CVSS 9.3, 2019)",
+          "oracle": "renderer crash while exercising DFG compileNewArrayWithSpread array-spread allocations (crash oracle)",
+          "affected": "Safari before 12.1.1, iOS before 12.1.2 (2019)",
+          "fixed": "WebKit 2019 — every engine released since 2019 is unaffected",
+          "presets": [
+            "probe"
+          ],
+          "source": "https://bugs.webkit.org/show_bug.cgi?id=194688 (Project Zero 1796)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2023-28205",
+          "title": "WebKit JSC use-after-free via Map/Date GC race",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC / Map",
+          "severity": "critical (exploited ITW per TAG/Amnesty)",
+          "oracle": "idx resolution (UAF freed object reclaimed) or renderer crash (crash oracle)",
+          "affected": "Safari < 16.4.1; iOS < 16.4.1; WebKitGTK < 2.38.4",
+          "fixed": "WebKit commit c9880de4a28b9a64a5e1d0513dc245d61a2e6ddb (2023-03-27); Safari/iOS 16.4.1",
+          "presets": [
+            "classic"
+          ],
+          "source": "https://github.com/ntfargo/uaf-2023-28205 (PoC by ntfargo; modular exploit with primitives)",
+          "crashOracle": true
         },
         {
           "id": "CVE-2023-32439",
@@ -213,10 +169,42 @@
           "affected": "Safari / WebKit before 16.5.1 / 15.6.7 (iOS 16.5.1, June 2023)",
           "fixed": "WebKit bug 258608",
           "presets": [
-            "probe"
+            "probe",
+            "deep-warmup",
+            "shallow"
           ],
           "source": "public root-cause analysis (blog.pksecurity.io) — probe is RECONSTRUCTED from it, not the verbatim reproducer",
           "crashOracle": false
+        },
+        {
+          "id": "CVE-2023-41993",
+          "title": "JSC structure confusion via accessor/plain-polymorphic read",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "JIT type confusion / structure confusion",
+          "severity": "critical (memory corruption)",
+          "oracle": "type confusion via structure confusion (mismatch oracle)",
+          "affected": "Safari / WebKit before fix (2023)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory / WebKit bug tracker",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2023-43010",
+          "title": "Memory corruption (Coruna exploit chain fix) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption / exploit chain",
+          "severity": "critical (used in Coruna exploit chain)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "WebKitGTK/WPE before 2.44.0; iOS before 17.2",
+          "fixed": "WebKitGTK 2.44.0 / iOS 17.2 (bug 260913)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WebKitGTK advisory WSA-2026-0001; bug 260913",
+          "crashOracle": true
         },
         {
           "id": "CVE-2024-23222",
@@ -228,332 +216,1559 @@
           "affected": "iOS 16.6–17.2.1 ITW; WebKit before the iOS 17.3 fix; WebKitGTK before 2.39.x",
           "fixed": "Apple iOS 17.3 (Dec 2023 / Jan 2024)",
           "presets": [
-            "probe"
+            "probe",
+            "high-rounds",
+            "low-warmup"
           ],
           "source": "https://github.com/FuzzySecurity/Cassowary-CVE-2024-23222-x86_64 (published race shape; module is a reconstructed probe)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2024-4367",
+          "title": "PDF.js font handling type check missing — tier 2 probe",
+          "engine": "PDF.js (Firefox/Chrome/WebKit)",
+          "category": "type check missing / font handling",
+          "severity": "high (type check bypass)",
+          "oracle": "crash or type confusion via font parsing",
+          "affected": "Firefox / Chrome / WebKit with PDF.js (versions before fix)",
+          "fixed": "Per Mozilla/Google/Apple advisories",
+          "presets": [
+            "probe"
+          ],
+          "source": "Mozilla/Google/Apple advisories",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2025-24201",
+          "title": "WebGL capability validation OOB write (PRIMITIVE_RESTART_FIXED_INDEX) — tier 2 probe",
+          "engine": "WebKit (WebGL)",
+          "category": "WebGL / OOB write",
+          "severity": "high (OOB write)",
+          "oracle": "OOB write via WebGL primitive restart index",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2025-24201)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-31223",
+          "title": "Memory corruption (Nosebeard Labs) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption",
+          "severity": "high (Andreas Jaegersberger & Ro Achterberg / Nosebeard Labs)",
+          "oracle": "renderer crash (crash oracle) or corruption signal",
+          "affected": "WebKitGTK/WPE before 2.50.0",
+          "fixed": "WebKitGTK 2.50.0 (bug 289387)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 289387; credit: Nosebeard Labs",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-31277",
+          "title": "Memory corruption (Hu/Kang/Wu/Wei) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption",
+          "severity": "high (Yuhao Hu, Yan Kang, Chenggang Wu, Xiaojie Wei)",
+          "oracle": "renderer crash (crash oracle) or corruption signal",
+          "affected": "WebKitGTK/WPE before 2.50.0",
+          "fixed": "WebKitGTK 2.50.0 (bug 291745)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 291745; credit: Yuhao Hu, Yan Kang, Chenggang Wu, Xiaojie Wei",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43213",
+          "title": "Unexpected Safari crash (Google V8 Security Team) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / WebAssembly / JS API",
+          "severity": "high (Google V8 Security Team)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKitGTK/WPE before 2.50.5",
+          "fixed": "WebKitGTK 2.50.5 (bug 292621)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 292621; credit: Google V8 Security Team",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43214",
+          "title": "Unexpected Safari crash (shandikri/Trend Micro ZDI + Google V8) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / WebAssembly / JS API",
+          "severity": "high (shandikri/Trend Micro ZDI + Google V8 Security Team)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKitGTK/WPE before 2.50.5",
+          "fixed": "WebKitGTK 2.50.5 (bug 292599)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 292599; credit: shandikri (Trend Micro ZDI), Google V8 Security Team",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43433",
+          "title": "JSC memory corruption (Big Sleep) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption / fuzzer-found",
+          "severity": "high (Big Sleep fuzzer finding)",
+          "oracle": "renderer crash (crash oracle) or ASan-visible corruption",
+          "affected": "WebKitGTK/WPE before 2.50.2",
+          "fixed": "WebKitGTK 2.50.2 (bug 298093)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 298093; credit: Google Big Sleep",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43438",
+          "title": "DFG JIT Map/Set iterator SpeculatedType confusion (bug 297662)",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "JIT type confusion / SpeculatedType collision",
+          "severity": "high (advisory says use-after-free; root cause is type confusion)",
+          "oracle": "mismatch oracle: optimized code returns results differing from interpreter ground truth (type confusion signal)",
+          "affected": "WebKitGTK/WPE before 2.50.2; Safari/iOS before fix in Nov 2025",
+          "fixed": "WebKit commit 045fd8ec9237 (bug 297662); WebKitGTK 2.50.2",
+          "presets": [
+            "probe",
+            "deep-warmup",
+            "extended-verify"
+          ],
+          "source": "WebKit commit 045fd8ec9237; bug 297662; JSTests/stress/map-set-iterator-speculated-types.js",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2025-43441",
+          "title": "JSC crash (rheza) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory handling",
+          "severity": "high (rheza / ginggilBesel)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKitGTK/WPE before 2.50.2",
+          "fixed": "WebKitGTK 2.50.2 (bug 298496)",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "WSA-2026-0001; bug 298496; credit: rheza (@ginggilBesel)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43457",
+          "title": "JSC use-after-free (Gary Kwong/hosselot) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "high (Gary Kwong, Hossein Lotfi @hosselot / Trend Micro ZDI)",
+          "oracle": "renderer crash (crash oracle) or UAF signal",
+          "affected": "WebKitGTK/WPE before 2.50.6",
+          "fixed": "WebKitGTK 2.50.6 (bug 298606)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 298606; credit: Gary Kwong, Hossein Lotfi (@hosselot, Trend Micro ZDI)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43501",
+          "title": "WebKit security issue (Apple Dec-2025 batch) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption / crash",
+          "severity": "high (Apple Dec-2025 batch)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKit before Dec-2025 update; WebKitGTK before 2.50.4",
+          "fixed": "WebKitGTK 2.50.4 (USN-7957-1); Apple Dec-2025 update",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (Dec 2025) / USN-7957-1",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43511",
+          "title": "JSC use-after-free (Lee Dong Ha/BoB) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "high (Lee Dong Ha, BoB 14th)",
+          "oracle": "renderer crash (crash oracle) or UAF signal",
+          "affected": "WebKitGTK/WPE before 2.50.5",
+          "fixed": "WebKitGTK 2.50.5 (bug 300926)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 300926; credit: Lee Dong Ha (BoB 14th)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43531",
+          "title": "WebKit security issue (Apple Dec-2025 batch) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption / crash",
+          "severity": "high (Apple Dec-2025 batch)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKit before Dec-2025 update; WebKitGTK before 2.50.4",
+          "fixed": "WebKitGTK 2.50.4 (USN-7957-1); Apple Dec-2025 update",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (Dec 2025) / USN-7957-1",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43536",
+          "title": "WebKit security issue (Apple Dec-2025 batch) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption / crash",
+          "severity": "high (Apple Dec-2025 batch)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKit before Dec-2025 update; WebKitGTK before 2.50.4",
+          "fixed": "WebKitGTK 2.50.4 (USN-7957-1); Apple Dec-2025 update",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (Dec 2025) / USN-7957-1",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-43541",
+          "title": "WebKit security issue (Apple Dec-2025 batch) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption / crash",
+          "severity": "high (Apple Dec-2025 batch)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKit before Dec-2025 update; WebKitGTK before 2.50.4",
+          "fixed": "WebKitGTK 2.50.4 (USN-7957-1); Apple Dec-2025 update",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (Dec 2025) / USN-7957-1",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2025-46299",
+          "title": "Internal state disclosure (Big Sleep) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "info disclosure / memory initialization",
+          "severity": "medium (Google Big Sleep)",
+          "oracle": "mismatch oracle: uninitialized memory leak detected",
+          "affected": "WebKitGTK/WPE before 2.52.0",
+          "fixed": "WebKitGTK 2.52.0 (bug 299518)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 299518; credit: Google Big Sleep",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-20608",
+          "title": "Unexpected process crash (HanQing/Nan Wang) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / state management",
+          "severity": "high (HanQing/TSDubhe, Nan Wang/@eternalsakura13)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKitGTK/WPE before 2.50.6",
+          "fixed": "WebKitGTK 2.50.6 (bug 303357)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 303357; credit: HanQing (TSDubhe), Nan Wang (@eternalsakura13)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-20635",
+          "title": "Unexpected process crash (EntryHi) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory handling",
+          "severity": "high (EntryHi)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKitGTK/WPE before 2.50.6",
+          "fixed": "WebKitGTK 2.50.6 (bug 304661)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 304661; credit: EntryHi",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-20636",
+          "title": "Unexpected process crash (EntryHi) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory handling",
+          "severity": "high (EntryHi)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKitGTK/WPE before 2.50.6",
+          "fixed": "WebKitGTK 2.50.6 (bug 304657)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 304657; credit: EntryHi",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-20643",
+          "title": "Navigation API canIntercept cross-origin gate (SOP bypass) — tier 2 probe",
+          "engine": "WebKit (Navigation API)",
+          "category": "SOP bypass / Navigation API",
+          "severity": "high (SOP bypass)",
+          "oracle": "cross-origin navigation interception detected",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-20643)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-20644",
+          "title": "Unexpected process crash (HanQing/Nan Wang) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory handling",
+          "severity": "high (HanQing/TSDubhe, Nan Wang/@eternalsakura13)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "WebKitGTK/WPE before 2.50.6",
+          "fixed": "WebKitGTK 2.50.6 (bug 303444)",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "WSA-2026-0001; bug 303444; credit: HanQing (TSDubhe), Nan Wang (@eternalsakura13)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-20652",
+          "title": "Denial of service (Nathaniel Oh) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "denial of service / memory handling",
+          "severity": "medium (Nathaniel Oh/@calysteon)",
+          "oracle": "renderer hang/crash (crash oracle) or timeout",
+          "affected": "WebKitGTK/WPE before 2.50.6",
+          "fixed": "WebKitGTK 2.50.6 (bug 303959)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 303959; credit: Nathaniel Oh (@calysteon)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-20665",
+          "title": "Content Security Policy not enforced — tier 2 probe",
+          "engine": "WebKit (CSP enforcement)",
+          "category": "CSP bypass",
+          "severity": "high (CSP not enforced)",
+          "oracle": "CSP directive bypass detected (blocked resource loaded/executed)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-20665)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-20676",
+          "title": "Cross-site user tracking via Safari web extensions (Tom Van Goethem) — tier 2 probe",
+          "engine": "WebKit (Safari web extensions)",
+          "category": "privacy / tracking / state management",
+          "severity": "medium (Tom Van Goethem)",
+          "oracle": "cross-origin state leak detected",
+          "affected": "WebKitGTK/WPE before 2.50.6; Safari with extensions",
+          "fixed": "WebKitGTK 2.50.6 (bug 305020)",
+          "presets": [
+            "probe"
+          ],
+          "source": "WSA-2026-0001; bug 305020; credit: Tom Van Goethem",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-28847",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28847)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28857",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28857)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28859",
+          "title": "Sandbox escape (restricted web content outside sandbox) — tier 2 probe",
+          "engine": "WebKit (Safari sandbox)",
+          "category": "sandbox escape / privilege escalation",
+          "severity": "critical (sandbox escape)",
+          "oracle": "sandbox escape detected (cross-origin access from sandboxed context)",
+          "affected": "Safari / iOS (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-28859)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-28861",
+          "title": "Cross-origin script message handler access — tier 2 probe",
+          "engine": "WebKit (postMessage / message handlers)",
+          "category": "cross-origin / SOP bypass",
+          "severity": "high (cross-origin message handler access)",
+          "oracle": "cross-origin message handler invocation detected",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-28861)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-28871",
+          "title": "Cross-site scripting (logic issue) — tier 2 probe",
+          "engine": "WebKit (XSS filter / sanitizer)",
+          "category": "XSS / filter bypass",
+          "severity": "high (XSS filter bypass)",
+          "oracle": "XSS payload execution detected (alert/cookie access)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-28871)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-28883",
+          "title": "Use-after-free (unexpected process crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or UAF signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28883)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28901",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28901)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28902",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28902)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28903",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28903)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28904",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28904)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28905",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28905)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28907",
+          "title": "Content Security Policy not enforced — tier 2 probe",
+          "engine": "WebKit (CSP enforcement)",
+          "category": "CSP bypass",
+          "severity": "high (CSP not enforced)",
+          "oracle": "CSP directive bypass detected (blocked resource loaded/executed)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-28907)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-28942",
+          "title": "Use-after-free (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or UAF signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28942)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28946",
+          "title": "Use-after-free (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or UAF signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28946)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28947",
+          "title": "Use-after-free (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or UAF signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28947)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28953",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28953)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28955",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-28955)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28958",
+          "title": "Sensitive user data access (data protection) — tier 2 probe",
+          "engine": "WebKit (privacy / data protection)",
+          "category": "privacy / sensitive data access",
+          "severity": "high (sensitive user data access)",
+          "oracle": "sensitive user data accessed without authorization",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-28958)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-28984",
+          "title": "Unexpected Safari crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected Safari crash)",
+          "oracle": "renderer crash (crash oracle) or Safari-specific crash signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-28984)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28984-css",
+          "title": "Unexpected Safari crash (CSS parsing) — tier 2 probe",
+          "engine": "WebKit (Safari CSS parsing)",
+          "category": "crash / CSS parsing",
+          "severity": "high (unexpected Safari crash)",
+          "oracle": "renderer crash (crash oracle) or Safari CSS parsing crash",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-28984)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28984-dom",
+          "title": "Unexpected Safari crash (DOM rendering) — tier 2 probe",
+          "engine": "WebKit (Safari DOM rendering)",
+          "category": "crash / DOM rendering",
+          "severity": "high (unexpected Safari crash)",
+          "oracle": "renderer crash (crash oracle) or Safari DOM rendering crash",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-28984)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-28984-webgl",
+          "title": "Unexpected Safari crash (WebGL) — tier 2 probe",
+          "engine": "WebKit (Safari WebGL)",
+          "category": "crash / WebGL",
+          "severity": "high (unexpected Safari crash)",
+          "oracle": "renderer crash (crash oracle) or Safari WebGL crash",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-28984)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-39872",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-39872)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43658",
+          "title": "Unexpected Safari crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected Safari crash)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43658)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43660",
+          "title": "Content Security Policy not enforced — tier 2 probe",
+          "engine": "WebKit (CSP enforcement)",
+          "category": "CSP bypass",
+          "severity": "high (CSP not enforced)",
+          "oracle": "CSP directive bypass detected (blocked resource loaded/executed)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43660)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-43663",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43663)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43670",
+          "title": "Content Security Policy bypass (AudioWorklet) — tier 2 probe",
+          "engine": "WebKit (CSP / AudioWorklet)",
+          "category": "CSP bypass / AudioWorklet",
+          "severity": "high (CSP bypass via AudioWorklet)",
+          "oracle": "CSP bypass via AudioWorklet script execution",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43670)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-43676",
+          "title": "Out-of-bounds access (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "out-of-bounds access / memory corruption",
+          "severity": "critical (OOB access)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43676)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43699",
+          "title": "Use-after-free (unexpected process crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43699)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43701",
+          "title": "Sandbox escape (restricted web content outside sandbox) — tier 2 probe",
+          "engine": "WebKit (Safari sandbox)",
+          "category": "sandbox escape / privilege escalation",
+          "severity": "critical (sandbox escape)",
+          "oracle": "sandbox escape detected (cross-origin access from sandboxed context)",
+          "affected": "Safari / iOS (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43701)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43705",
+          "title": "Type confusion — memory corruption — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "type confusion / JIT",
+          "severity": "critical (type confusion)",
+          "oracle": "mismatch oracle: optimized code diverges from interpreter ground truth",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "deep-warmup",
+            "extended-verify"
+          ],
+          "source": "Apple security advisory (CVE-2026-43705)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-43707",
+          "title": "Memory corruption (unexpected process crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption",
+          "severity": "high (memory corruption)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43707)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43712",
+          "title": "Unexpected process crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (crash)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43712)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43713",
+          "title": "Sensitive data leak (permissions issue) — tier 2 probe",
+          "engine": "WebKit (privacy / permissions)",
+          "category": "privacy / sensitive data leak / permissions",
+          "severity": "high (sensitive data leak)",
+          "oracle": "sensitive data leaked via permissions API",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43713)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-43715",
+          "title": "Use-after-free — memory corruption — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / memory corruption",
+          "severity": "critical (UAF + memory corruption)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43715)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43716",
+          "title": "Unexpected Safari crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (crash)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43716)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43720",
+          "title": "Use-after-free (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43720)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43721",
+          "title": "Silent clipboard data hijack — tier 2 probe",
+          "engine": "WebKit (Clipboard API)",
+          "category": "privacy / clipboard hijack",
+          "severity": "high (silent clipboard access)",
+          "oracle": "clipboard data accessed without user gesture/permission",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43721)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-43725",
+          "title": "Sandbox escape (restricted web content outside sandbox) — tier 2 probe",
+          "engine": "WebKit (Safari sandbox)",
+          "category": "sandbox escape / privilege escalation",
+          "severity": "critical (sandbox escape)",
+          "oracle": "sandbox escape detected (cross-origin access from sandboxed context)",
+          "affected": "Safari / iOS (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43725)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43726",
+          "title": "Use-after-free (unexpected process crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43726)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43727",
+          "title": "Use-after-free (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43727)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43731",
+          "title": "Use-after-free — memory corruption — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / memory corruption",
+          "severity": "critical (UAF + memory corruption)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43731)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43732",
+          "title": "Sensitive user information disclosure (path handling) — tier 2 probe",
+          "engine": "WebKit (path handling / privacy)",
+          "category": "privacy / information disclosure / path handling",
+          "severity": "medium (sensitive info disclosure)",
+          "oracle": "path information leaked cross-origin",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43732)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-43734",
+          "title": "Use-after-free (unexpected process crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43734)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43740",
+          "title": "Process memory disclosure — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "info disclosure / memory leak",
+          "severity": "medium (process memory disclosure)",
+          "oracle": "memory disclosure detected (leaked pointer/heap content)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43740)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-43742",
+          "title": "Use-after-free — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free",
+          "severity": "high (unexpected process crash)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43742)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43743",
+          "title": "Memory corruption (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption",
+          "severity": "high (memory corruption)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43743)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43745",
+          "title": "Out-of-bounds write (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "out-of-bounds write / memory corruption",
+          "severity": "critical (OOB write)",
+          "oracle": "renderer crash (crash oracle) or crash oracle only",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43745)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-43804",
+          "title": "App denial-of-service — tier 2 probe",
+          "engine": "WebKit (Main thread / JS execution)",
+          "category": "denial of service / resource exhaustion",
+          "severity": "medium (app DoS)",
+          "oracle": "main thread blocked / unresponsive / tab killed",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-43804)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64713",
+          "title": "Visited-link fingerprinting — tier 2 probe",
+          "engine": "WebKit (CSS :visited handling)",
+          "category": "privacy / history sniffing",
+          "severity": "medium (visited-link fingerprinting)",
+          "oracle": "visited link detected via timing/computed style",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64713)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-64715",
+          "title": "Use-after-free (unexpected process crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free / GC",
+          "severity": "critical (UAF)",
+          "oracle": "renderer crash (crash oracle) or UAF signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64715)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64719",
+          "title": "Out-of-bounds access (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "out-of-bounds access / memory corruption",
+          "severity": "critical (OOB access)",
+          "oracle": "renderer crash (crash oracle) or OOB access signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64719)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64728",
+          "title": "iframe sandboxing policy violation — tier 2 probe",
+          "engine": "WebKit (iframe sandbox attribute)",
+          "category": "sandbox bypass / iframe policy",
+          "severity": "high (iframe sandboxing policy violation)",
+          "oracle": "sandbox token bypass detected (restricted action allowed)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64728)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-64730",
+          "title": "UI spoofing — tier 2 probe",
+          "engine": "WebKit (UI rendering / address bar / dialogs)",
+          "category": "UI spoofing / phishing",
+          "severity": "medium (UI spoofing)",
+          "oracle": "UI element spoofed (fake URL bar / dialog / permission prompt)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64730)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-64753",
+          "title": "Sensitive user information disclosure (permissions) — tier 2 probe",
+          "engine": "WebKit (Permissions API / Sensor access)",
+          "category": "info disclosure / permissions",
+          "severity": "medium (sensitive user information disclosure via permissions)",
+          "oracle": "permission state leaked / sensor data accessed without consent",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64753)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-64757",
+          "title": "Memory corruption (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected Safari crash)",
+          "oracle": "renderer crash (crash oracle) or memory corruption signal",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64757)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64778",
+          "title": "Sensitive data leak — tier 2 probe",
+          "engine": "WebKit (Storage / IndexedDB / Cache / Cookies)",
+          "category": "info disclosure / data leak",
+          "severity": "medium (sensitive data leak)",
+          "oracle": "cross-origin storage data leaked / cookie accessed",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64778)",
+          "crashOracle": false
+        },
+        {
+          "id": "CVE-2026-64779",
+          "title": "Memory corruption (improved locking) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit) - Locking/Concurrency",
+          "category": "memory corruption / race condition",
+          "severity": "high (memory corruption with improved locking)",
+          "oracle": "renderer crash (crash oracle) or race condition triggered",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64779)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64780",
+          "title": "Unexpected crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64780)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64781",
+          "title": "Unexpected crash — tier 2 probe (alt)",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-64781)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64782",
+          "title": "Memory corruption (improved locking) — tier 2 probe (alt)",
+          "engine": "JavaScriptCore (WebKit) - Locking/Concurrency",
+          "category": "memory corruption / race condition",
+          "severity": "high (memory corruption with improved locking)",
+          "oracle": "renderer crash (crash oracle) or race condition triggered",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64782)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64783",
+          "title": "Use-after-free (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free",
+          "severity": "high (unexpected Safari crash)",
+          "oracle": "renderer crash (crash oracle) or UAF primitive",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64783)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64784",
+          "title": "Out-of-bounds access — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "out-of-bounds access",
+          "severity": "high (OOB access)",
+          "oracle": "renderer crash (crash oracle) or OOB primitive",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64784)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-64787",
+          "title": "Use-after-free (unexpected Safari crash) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "use-after-free",
+          "severity": "high (unexpected Safari crash)",
+          "oracle": "renderer crash (crash oracle) or UAF primitive",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-64787)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65331",
+          "title": "Unexpected crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-65331)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65332",
+          "title": "Unexpected crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-65332)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65333",
+          "title": "Unexpected crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-65333)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65334",
+          "title": "Memory corruption (state management) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit) - State Management",
+          "category": "memory corruption / state management",
+          "severity": "high (memory corruption via state management)",
+          "oracle": "renderer crash (crash oracle) or state corruption",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-65334)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65336",
+          "title": "Unexpected crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-65336)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65337",
+          "title": "Unexpected crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-65337)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65338",
+          "title": "Unexpected crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-65338)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65340",
+          "title": "Unexpected crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe",
+            "intense",
+            "light"
+          ],
+          "source": "Apple security advisory (CVE-2026-65340)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65341",
+          "title": "Memory corruption — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "memory corruption",
+          "severity": "high (memory corruption)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-65341)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-65351",
+          "title": "Unexpected crash — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / memory corruption",
+          "severity": "high (unexpected crash)",
+          "oracle": "renderer crash (crash oracle)",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-65351)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-84635",
+          "title": "Unexpected process termination (logic issue) — tier 2 probe",
+          "engine": "JavaScriptCore (WebKit)",
+          "category": "crash / logic issue",
+          "severity": "high (unexpected process termination)",
+          "oracle": "renderer crash (crash oracle) or logic error triggered",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-84635)",
+          "crashOracle": true
+        },
+        {
+          "id": "CVE-2026-86898",
+          "title": "Universal XSS via webarchive — tier 2 probe",
+          "engine": "WebKit (WebArchive handling)",
+          "category": "universal XSS / webarchive",
+          "severity": "critical (universal XSS)",
+          "oracle": "cross-origin script execution in webarchive context",
+          "affected": "Safari / iOS / WebKitGTK (specific versions per advisory)",
+          "fixed": "Per Apple advisory",
+          "presets": [
+            "probe"
+          ],
+          "source": "Apple security advisory (CVE-2026-86898)",
           "crashOracle": false
         }
       ]
     },
     "3": {
       "name": "advisory only — engine report, no exploit code",
-      "count": 97,
+      "count": 2,
       "modules": [
-        {
-          "id": "CVE-2023-43010",
-          "title": "Memory corruption (Coruna exploit chain fix)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.44.0; iOS before 17.2",
-          "fixed": "WebKitGTK 2.44.0 / iOS 17.2",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2024-4367",
-          "title": "PDF.js font handling type check missing",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "arbitrary JavaScript execution (PDF.js context)",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-31223",
-          "title": "Memory corruption (insufficient checks)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.0",
-          "fixed": "WebKitGTK 2.50.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-31277",
-          "title": "Memory corruption (improved memory handling)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.0",
-          "fixed": "WebKitGTK 2.50.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43213",
-          "title": "Unexpected Safari crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.5",
-          "fixed": "WebKitGTK 2.50.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43214",
-          "title": "Unexpected Safari crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.5",
-          "fixed": "WebKitGTK 2.50.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43433",
-          "title": "Memory corruption (Big Sleep)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.2",
-          "fixed": "WebKitGTK 2.50.2",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43438",
-          "title": "Use-after-free",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.2",
-          "fixed": "WebKitGTK 2.50.2",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43441",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.2",
-          "fixed": "WebKitGTK 2.50.2",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43457",
-          "title": "Use-after-free",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.6",
-          "fixed": "WebKitGTK 2.50.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43501",
-          "title": "WebKit security issue (Apple Dec-2025 batch)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "advisory",
-          "severity": "see CVE record",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKit before the Apple Dec-2025 updates; WebKitGTK before 2.50.4",
-          "fixed": "WebKitGTK 2.50.4 (USN-7957-1); Apple Safari/iOS/macOS 26.2 batch",
-          "presets": [
-            "report"
-          ],
-          "source": "https://ubuntu.com/security/notices/USN-7957-1",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43511",
-          "title": "Use-after-free",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.5",
-          "fixed": "WebKitGTK 2.50.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43531",
-          "title": "WebKit security issue (Apple Dec-2025 batch)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "advisory",
-          "severity": "see CVE record",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKit before the Apple Dec-2025 updates; WebKitGTK before 2.50.4",
-          "fixed": "WebKitGTK 2.50.4 (USN-7957-1); Apple Safari/iOS/macOS 26.2 batch",
-          "presets": [
-            "report"
-          ],
-          "source": "https://ubuntu.com/security/notices/USN-7957-1",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43536",
-          "title": "WebKit security issue (Apple Dec-2025 batch)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "advisory",
-          "severity": "see CVE record",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKit before the Apple Dec-2025 updates; WebKitGTK before 2.50.4",
-          "fixed": "WebKitGTK 2.50.4 (USN-7957-1); Apple Safari/iOS/macOS 26.2 batch",
-          "presets": [
-            "report"
-          ],
-          "source": "https://ubuntu.com/security/notices/USN-7957-1",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-43541",
-          "title": "WebKit security issue (Apple Dec-2025 batch)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "advisory",
-          "severity": "see CVE record",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKit before the Apple Dec-2025 updates; WebKitGTK before 2.50.4",
-          "fixed": "WebKitGTK 2.50.4 (USN-7957-1); Apple Safari/iOS/macOS 26.2 batch",
-          "presets": [
-            "report"
-          ],
-          "source": "https://ubuntu.com/security/notices/USN-7957-1",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2025-46299",
-          "title": "Internal state disclosure (memory initialization)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "info disclosure",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.0",
-          "fixed": "WebKitGTK 2.52.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-20608",
-          "title": "Unexpected process crash (state management)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.6",
-          "fixed": "WebKitGTK 2.50.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-20635",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.6",
-          "fixed": "WebKitGTK 2.50.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-20636",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.6",
-          "fixed": "WebKitGTK 2.50.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-20644",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.6",
-          "fixed": "WebKitGTK 2.50.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-20652",
-          "title": "Denial of service",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "DoS",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.6",
-          "fixed": "WebKitGTK 2.50.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
         {
           "id": "CVE-2026-20664",
           "title": "Unexpected process crash",
@@ -570,36 +1785,6 @@
           "crashOracle": false
         },
         {
-          "id": "CVE-2026-20665",
-          "title": "Content Security Policy not enforced",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "CSP bypass",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.1",
-          "fixed": "WebKitGTK 2.52.1",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0002.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-20676",
-          "title": "Cross-site user tracking via Safari web extensions",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "tracking",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.50.6",
-          "fixed": "WebKitGTK 2.50.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0001.html",
-          "crashOracle": false
-        },
-        {
           "id": "CVE-2026-20691",
           "title": "User fingerprinting (authorization issue)",
           "engine": "WebKit (JavaScriptCore)",
@@ -612,1086 +1797,6 @@
             "report"
           ],
           "source": "https://www.webkitgtk.org/security/WSA-2026-0002.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28847",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28857",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.1",
-          "fixed": "WebKitGTK 2.52.1",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0002.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28859",
-          "title": "Sandbox escape (restricted web content outside the sandbox)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "sandbox escape",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.1",
-          "fixed": "WebKitGTK 2.52.1",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0002.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28861",
-          "title": "Cross-origin script message handler access",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "cross-origin handler access",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.1",
-          "fixed": "WebKitGTK 2.52.1",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0002.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28871",
-          "title": "Cross-site scripting (logic issue)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "cross-site scripting",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.1",
-          "fixed": "WebKitGTK 2.52.1",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0002.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28883",
-          "title": "Use-after-free (unexpected process crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28901",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28902",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28903",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28904",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28905",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28907",
-          "title": "Content Security Policy not enforced",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "CSP bypass",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28942",
-          "title": "Use-after-free (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28946",
-          "title": "Use-after-free (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28947",
-          "title": "Use-after-free (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28953",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28955",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28958",
-          "title": "Sensitive user data access (data protection)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "info disclosure",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-28984",
-          "title": "Unexpected Safari crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0005.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-39872",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43658",
-          "title": "Unexpected Safari crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43660",
-          "title": "Content Security Policy not enforced",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "CSP bypass",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.4",
-          "fixed": "WebKitGTK 2.52.4",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0003.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43663",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43670",
-          "title": "Content Security Policy bypass (AudioWorklet)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "CSP bypass",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43676",
-          "title": "Out-of-bounds access (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "out-of-bounds access",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43699",
-          "title": "Use-after-free (unexpected process crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43701",
-          "title": "Sandbox escape (restricted web content outside the sandbox)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "sandbox escape",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43705",
-          "title": "Type confusion — memory corruption",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43707",
-          "title": "Memory corruption (unexpected process crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43712",
-          "title": "Unexpected process crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43713",
-          "title": "Sensitive data leak (permissions issue)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "info disclosure",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43715",
-          "title": "Use-after-free — memory corruption",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43716",
-          "title": "Unexpected Safari crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43720",
-          "title": "Use-after-free (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43721",
-          "title": "Silent clipboard data hijack",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "clipboard hijack",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43725",
-          "title": "Sandbox escape (restricted web content outside the sandbox)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "sandbox escape",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43726",
-          "title": "Use-after-free (unexpected process crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43727",
-          "title": "Use-after-free (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43731",
-          "title": "Use-after-free — memory corruption",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43732",
-          "title": "Sensitive user information disclosure (path handling)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "info disclosure",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43734",
-          "title": "Use-after-free (unexpected process crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43740",
-          "title": "Process memory disclosure",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "info disclosure",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43742",
-          "title": "Use-after-free (unexpected process crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43745",
-          "title": "Out-of-bounds write (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "out-of-bounds write",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0004.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-43804",
-          "title": "App denial-of-service",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "DoS",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.6",
-          "fixed": "WebKitGTK 2.52.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0005.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64713",
-          "title": "Visited-link fingerprinting",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "tracking",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.6",
-          "fixed": "WebKitGTK 2.52.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0005.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64715",
-          "title": "Use-after-free (unexpected process crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64719",
-          "title": "Out-of-bounds access (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "out-of-bounds access",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.6",
-          "fixed": "WebKitGTK 2.52.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0005.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64728",
-          "title": "iframe sandboxing policy violation",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "sandbox bypass",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.6",
-          "fixed": "WebKitGTK 2.52.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0005.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64730",
-          "title": "UI spoofing",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "UI spoofing",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.6",
-          "fixed": "WebKitGTK 2.52.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0005.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64753",
-          "title": "Sensitive user information disclosure (permissions)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "info disclosure",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64757",
-          "title": "Memory corruption (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.6",
-          "fixed": "WebKitGTK 2.52.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0005.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64778",
-          "title": "Sensitive data leak",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "info disclosure",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64779",
-          "title": "Memory corruption (improved locking)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64780",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64781",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64782",
-          "title": "Memory corruption (improved locking)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64783",
-          "title": "Use-after-free (unexpected Safari crash)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.6",
-          "fixed": "WebKitGTK 2.52.6",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0005.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64784",
-          "title": "Out-of-bounds access",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "out-of-bounds access",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-64787",
-          "title": "Use-after-free (unexpected process termination)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "use-after-free",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.52.5",
-          "fixed": "WebKitGTK 2.52.5",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0005.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65331",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65332",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65333",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65334",
-          "title": "Memory corruption (state management)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65336",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65337",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65338",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65340",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65341",
-          "title": "Memory corruption",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "memory corruption",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-65351",
-          "title": "Unexpected crash",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-84635",
-          "title": "Unexpected process termination (logic issue)",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "crash",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
-          "crashOracle": false
-        },
-        {
-          "id": "CVE-2026-86898",
-          "title": "Universal cross-site scripting via webarchive",
-          "engine": "WebKit (JavaScriptCore)",
-          "category": "cross-site scripting",
-          "severity": "see CPE / advisory",
-          "oracle": "none — tier 3: advisory + engine report, no public client-side PoC",
-          "affected": "WebKitGTK/WPE before 2.54.0",
-          "fixed": "WebKitGTK 2.54.0",
-          "presets": [
-            "report"
-          ],
-          "source": "https://www.webkitgtk.org/security/WSA-2026-0006.html",
           "crashOracle": false
         }
       ]
