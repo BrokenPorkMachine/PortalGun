@@ -70,7 +70,9 @@ GW_IP=10.20.0.1
 AP_IP=10.20.0.2
 AP_NETMASK=255.255.255.0
 SSID="PortalGun-LAB"
+SSID_GIVEN=0
 PASSPHRASE=""
+PASSPHRASE_GIVEN=0
 ROUTER=""
 ROUTER_GIVEN=0
 DNS=""
@@ -82,8 +84,8 @@ while [ $# -gt 0 ]; do
         -b) [ $# -ge 2 ] || die "-b needs a value"; BRIDGE="$2"; shift 2;;
         -g) [ $# -ge 2 ] || die "-g needs a value"; GW_IP="$2"; shift 2;;
         -a) [ $# -ge 2 ] || die "-a needs a value"; AP_IP="$2"; shift 2;;
-        --ssid) [ $# -ge 2 ] || die "--ssid needs a value"; SSID="$2"; shift 2;;
-        --passphrase) [ $# -ge 2 ] || die "--passphrase needs a value"; PASSPHRASE="$2"; shift 2;;
+        --ssid) [ $# -ge 2 ] || die "--ssid needs a value"; SSID="$2"; SSID_GIVEN=1; shift 2;;
+        --passphrase) [ $# -ge 2 ] || die "--passphrase needs a value"; PASSPHRASE="$2"; PASSPHRASE_GIVEN=1; shift 2;;
         --router) [ $# -ge 2 ] || die "--router needs a value"; ROUTER="$2"; ROUTER_GIVEN=1; shift 2;;
         --no-keepalive) KEEPALIVE=0; shift;;
         --dry-run)  DRY=1; shift;;
@@ -113,6 +115,8 @@ KEEPALIVE_BIN=/usr/local/sbin/portalgun-ap-keepalive
 KEEPALIVE_PLIST=/Library/LaunchDaemons/com.portalgun.ap-keepalive.plist
 KEEPALIVE_LABEL=com.portalgun.ap-keepalive
 KEEPALIVE_LOG=/var/log/portalgun-ap-keepalive.log
+STATE_DIR=/var/db/portalgun
+PASS_FILE="$STATE_DIR/ap-passphrase"
 
 # ---------------------------------------------------------------- helpers
 iface_ipv4() {
@@ -135,21 +139,6 @@ bridge_has_member() {
 
 plist_get() {
     /usr/libexec/PlistBuddy -c "Print :$1" "$NAT_PLIST" 2>/dev/null || true
-}
-
-sharing_state() {
-    # Internet Sharing on/off and hotspot radio on/off.
-    local nat radio
-    nat="$(plist_get 'NAT:Enabled')"
-    radio="$(plist_get 'NAT:AirPort:Enabled')"
-    case "$nat" in
-        1|true|yes|Yes) ;;
-        *) echo off; return;;
-    esac
-    case "$radio" in
-        1|true|yes|Yes) echo hotspot;;
-        *) echo nat-only;;
-    esac
 }
 
 detect_wifi_iface() {
@@ -176,17 +165,41 @@ detect_lan_iface() {
     echo "$fallback"
 }
 
-detect_bridge() {
-    # The hotspot bridge: bridge100 by convention. Fall back to any bridge
-    # that holds an IPv4 address.
+detect_hotspot_bridge() {
+    # The bridge that carries the hotspot network. Internet Sharing puts it
+    # on 192.168.2.0/24; if that is not what we find, fall back to a bridge
+    # that holds the radio.
     local dev ip
     for dev in bridge100 $(ifconfig -l 2>/dev/null | grep '^bridge'); do
         [ -e "/sys/class/net/$dev" ] || continue
         ip="$(iface_ipv4 "$dev")"
-        [ -n "$ip" ] || continue
-        echo "$dev"; return 0
+        case "$ip" in
+            192.168.2.*) echo "$dev"; return 0;;
+        esac
+    done
+    for dev in bridge100 $(ifconfig -l 2>/dev/null | grep '^bridge'); do
+        [ -e "/sys/class/net/$dev" ] || continue
+        if bridge_has_member "$dev" "$WIFI_IFACE" || bridge_has_member "$dev" ap1; then
+            echo "$dev"; return 0
+        fi
     done
     echo bridge100
+}
+
+sharing_state() {
+    # The LIVE state, not the preference file. com.apple.nat.plist can say
+    # "enabled" while the daemon is not running and no bridge exists at all -
+    # which looks exactly like a working hotspot in the plist and is not one.
+    local dev
+    if ! launchctl print "system/$SHARING_LABEL" 2>/dev/null | grep -q "state = running"; then
+        echo off; return
+    fi
+    dev="$(detect_hotspot_bridge)"
+    if [ -e "/sys/class/net/$dev" ] && [ -n "$(iface_ipv4 "$dev")" ]; then
+        echo hotspot
+    else
+        echo nat-only
+    fi
 }
 
 detect_service() {
@@ -223,12 +236,44 @@ current_dns() {
     esac
 }
 
+# The SSID and the password the hotspot ACTUALLY uses. They come from the
+# sharing preferences, which is the only place the truth lives: the hotspot
+# may have been set up by hand in System Settings, and then they are not the
+# ones this script generated.
+hotspot_ssid() {
+    local name
+    name="$(plist_get 'NAT:AirPort:NetworkName')"
+    printf '%s' "${name:-<unset>}"
+}
+
+hotspot_passphrase() {
+    python3 - <<'PYEOF'
+import plistlib
+path = "/Library/Preferences/SystemConfiguration/com.apple.nat.plist"
+try:
+    with open(path, "rb") as fh:
+        plist = plistlib.load(fh)
+    raw = plist["NAT"]["AirPort"]["NetworkPassword"].get("bytes", b"")
+    print(raw.decode() if isinstance(raw, bytes) else "")
+except Exception:
+    print("")
+PYEOF
+}
+
 # ---------------------------------------------------------------- detection
 WIFI_IFACE="$(detect_wifi_iface || true)"
 [ -n "$WIFI_IFACE" ] || WIFI_IFACE=en1
 [ -n "$LAN_IFACE" ] || LAN_IFACE="$(detect_lan_iface "$WIFI_IFACE")"
-[ -n "$BRIDGE" ] || BRIDGE="$(detect_bridge)"
-[ -n "$PASSPHRASE" ] || PASSPHRASE="$(openssl rand -hex 8 2>/dev/null || head -c 16 /dev/urandom | xxd -p | tr -d '\n')"
+[ -n "$BRIDGE" ] || BRIDGE="$(detect_hotspot_bridge)"
+# The hotspot passphrase is remembered: re-running the script must not change
+# the password the devices are already using.
+if [ -z "$PASSPHRASE" ]; then
+    if [ -s "$PASS_FILE" ]; then
+        PASSPHRASE="$(cat "$PASS_FILE")"
+    else
+        PASSPHRASE="$(openssl rand -hex 8 2>/dev/null || head -c 16 /dev/urandom | xxd -p | tr -d '\n')"
+    fi
+fi
 SVC="$(detect_service "$WIFI_IFACE")"
 # Router and DNS of the wired port: keep whatever the operator has unless
 # told otherwise.
@@ -238,23 +283,24 @@ SVC="$(detect_service "$WIFI_IFACE")"
 # ---------------------------------------------------------------- status
 if [ "$STATUS" = 1 ]; then
     echo "== access point (closed-loop lab)" >&2
-    echo "  radio        : $WIFI_IFACE (SSID: $(plist_get 'NAT:AirPort:NetworkName'))" >&2
+    echo "  radio        : $WIFI_IFACE (SSID: $(hotspot_ssid))" >&2
     echo "  sharing      : $(sharing_state)" >&2
+    echo "  daemon       : $(launchctl print "system/$SHARING_LABEL" 2>/dev/null | sed -n 's/^[[:space:]]*state = //p' | head -1 || echo 'not loaded')" >&2
     if [ -e "/sys/class/net/$BRIDGE" ]; then
         echo "  bridge       : $BRIDGE ($(iface_ipv4 "$BRIDGE" || echo 'no IPv4'))" >&2
         for m in $(ifconfig "$BRIDGE" 2>/dev/null | awk '/member:/{print $2}'); do
             echo "    member     : $m" >&2
         done
     else
-        echo "  bridge       : $BRIDGE (not created - Internet Sharing is off)" >&2
+        echo "  bridge       : $BRIDGE (not created - the sharing daemon is not running)" >&2
     fi
     echo "  wired port   : $LAN_IFACE ($(iface_ipv4 "$LAN_IFACE" || echo 'no IPv4'))" >&2
     echo "  bootpd       : $(launchctl print-disabled system 2>/dev/null | grep -q "$BOOTPD_LABEL.*disabled" && echo 'disabled (good)' || echo 'may be enabled')" >&2
     echo "  gateway      : $GW_IP (ping: $(ping -c1 -W1000 "$GW_IP" >/dev/null 2>&1 && echo reachable || echo UNREACHABLE))" >&2
     echo "  keepalive    : $([ -x "$KEEPALIVE_BIN" ] && echo installed || echo 'not installed')" >&2
     echo >&2
-    echo "  healthy when: '$BRIDGE' holds '$LAN_IFACE', bootpd is disabled, and" >&2
-    echo "  a client gets a 10.20.0.x lease from the gateway." >&2
+    echo "  healthy when: the daemon is running, '$BRIDGE' holds '$LAN_IFACE'," >&2
+    echo "  bootpd is disabled, and a client gets a 10.20.0.x lease." >&2
     exit 0
 fi
 
@@ -292,19 +338,17 @@ if ! ping -c1 -W1000 "$GW_IP" >/dev/null 2>&1; then
 fi
 
 # ------------------------------------------------- internet sharing (the radio)
-ICS="$(sharing_state)"
-if [ "$ICS" != "hotspot" ]; then
-    echo >&2
-    echo "Internet Sharing is not running with the hotspot radio on." >&2
-    echo "The SoftAP is the only access point macOS exposes on Apple Silicon," >&2
-    echo "so it has to be on before this script can convert it into a bridge." >&2
-    echo >&2
-    if [ "$DRY" = 1 ]; then
-        echo "[dry-run] would write the sharing preferences and start the daemon." >&2
-    else
-        # Best effort: write the preferences the sharing daemon reads, then
-        # start it. If macOS refuses, fall back to the UI.
-        python3 - "$NAT_PLIST" "$LAN_IFACE" "$WIFI_IFACE" "$SSID" "$PASSPHRASE" <<'PYEOF'
+# The radio has to be up before this script can convert it into a bridge: the
+# SoftAP is the only access point macOS exposes on Apple Silicon.
+#
+# Two ways to get there:
+#   * the script writes the sharing preferences and kickstarts the daemon
+#   * the operator flips the switch in System Settings
+#
+# Either way, the SSID and the password that the hotspot actually uses are
+# the ones in com.apple.nat.plist - which is what gets printed at the end.
+write_sharing_prefs() {
+    python3 - "$NAT_PLIST" "$LAN_IFACE" "$WIFI_IFACE" "$SSID" "$PASSPHRASE" <<'PYEOF'
 import plistlib, sys
 path, lan, wifi, ssid, passwd = sys.argv[1:6]
 try:
@@ -326,12 +370,49 @@ airport["40BitEncrypt"] = 1
 airport["Channel"] = 0
 with open(path, "wb") as fh:
     plistlib.dump(plist, fh)
-print("wrote", path)
 PYEOF
-        launchctl bootstrap system "$SHARING_PLIST" 2>/dev/null \
-            || launchctl load -w "$SHARING_PLIST" 2>/dev/null \
-            || true
-        sleep 3
+}
+
+start_sharing() {
+    # The job is already loaded (launchd owns its Mach service), so
+    # bootstrap/load do nothing: it has to be KICKSTARTED.
+    launchctl enable "system/$SHARING_LABEL" 2>/dev/null || true
+    launchctl kickstart -k "system/$SHARING_LABEL" 2>/dev/null || true
+    # The bridge and the SoftAP take a moment to appear.
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+        sleep 1
+        [ "$(sharing_state)" = "hotspot" ] && return 0
+    done
+    return 1
+}
+
+ICS="$(sharing_state)"
+RESTART_SHARING=0
+if [ "$ICS" != "hotspot" ]; then
+    echo >&2
+    echo "Internet Sharing is not running with the hotspot radio on." >&2
+    echo "The SoftAP is the only access point macOS exposes on Apple Silicon," >&2
+    echo "so it has to be on before this script can convert it into a bridge." >&2
+    echo >&2
+    RESTART_SHARING=1
+elif [ "$SSID_GIVEN" = 1 ] || [ "$PASSPHRASE_GIVEN" = 1 ]; then
+    echo "applying the requested SSID / passphrase to the running hotspot" >&2
+    RESTART_SHARING=1
+fi
+
+if [ "$RESTART_SHARING" = 1 ]; then
+    if [ "$DRY" = 1 ]; then
+        echo "[dry-run] would write the sharing preferences and start the daemon." >&2
+    else
+        write_sharing_prefs
+        # Remember the passphrase: re-running must not change the password the
+        # devices are already using.
+        mkdir -p "$STATE_DIR" 2>/dev/null || true
+        chmod 700 "$STATE_DIR" 2>/dev/null || true
+        printf '%s\n' "$PASSPHRASE" > "$PASS_FILE"
+        chmod 600 "$PASS_FILE" 2>/dev/null || true
+        start_sharing || true
         ICS="$(sharing_state)"
         if [ "$ICS" != "hotspot" ]; then
             die "could not start Internet Sharing from the command line.
@@ -339,7 +420,9 @@ PYEOF
     System Settings > General > Sharing > Internet Sharing
       Share your connection from: $LAN_IFACE ($SVC)
       To computers using: $WIFI_IFACE (Wi-Fi)
-    Password for the hotspot: the passphrase this script printed above."
+    The hotspot then appears with the SSID and password printed below.
+  (the script wrote the same preferences into $NAT_PLIST)
+  To see what macOS did: log show --last 5m --predicate 'process == \"InternetSharing\"'"
         fi
     fi
 fi
@@ -550,8 +633,8 @@ cat >&2 <<EOF
 
 AP up. The Mac is the radio only: no DHCP, no NAT, no routing.
 
-    SSID        : $SSID
-    passphrase  : $PASSPHRASE
+    SSID        : $(hotspot_ssid)
+    passphrase  : $(hotspot_passphrase)
     clients get : 10.20.0.50-150 from the gateway, router/DNS $GW_IP
     this Mac   : $AP_IP on $LAN_IFACE
 
