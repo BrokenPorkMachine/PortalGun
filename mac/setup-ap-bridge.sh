@@ -28,7 +28,10 @@
 #   3. macOS's own DHCP server (bootpd) is disabled      -> the Linux box is
 #      the only DHCP server, so clients get a 10.20.0.x lease with the gateway
 #      as router and DNS
-#   4. a launchd keepalive re-asserts 2 and 3          -> the sharing daemon
+#   4. transit IPv6 is turned off                         -> the lab is IPv4-only;
+#      an IPv6 default route would go around the gateway, and the Linux box's
+#      enforcement cannot see it
+#   5. a launchd keepalive re-asserts 2-4                -> the sharing daemon
 #      re-applies its own configuration after a link flap or a reboot, and a
 #      single stray 192.168.2.x lease is enough to break the lab silently
 #
@@ -402,7 +405,31 @@ else
     fi
 fi
 
-# ------------------------------------------------- 4. keepalive
+# ------------------------------------------------- 4. no IPv6 path around the portal
+# The lab is IPv4-only: the gateway's enforcement (nftables) is IPv4-only, and
+# the Linux box disables IPv6 on its own interface. If the Mac forwards IPv6
+# for the hotspot, a client with an IPv6 address and an IPv6 default route
+# goes around the gateway entirely - and the portal never opens. Transit IPv6
+# off, and keep it off (Internet Sharing may turn it back on).
+echo "== IPv6" >&2
+if [ "$DRY" = 1 ]; then
+    echo "  [dry-run] would set net.inet6.ip6.forwarding=0" >&2
+else
+    if [ "$(sysctl -n net.inet6.ip6.forwarding 2>/dev/null || echo 0)" != "0" ]; then
+        sysctl -w net.inet6.ip6.forwarding=0 >/dev/null 2>&1 || true
+        echo "  net.inet6.ip6.forwarding=0 (the lab is IPv4-only)" >&2
+    else
+        echo "  net.inet6.ip6.forwarding=0 already" >&2
+    fi
+    if [ -f /etc/sysctl.conf ] && ! grep -q "PortalGun closed-loop AP" /etc/sysctl.conf 2>/dev/null; then
+        {
+            echo "# PortalGun closed-loop AP"
+            echo "net.inet6.ip6.forwarding=0"
+        } >> /etc/sysctl.conf
+    fi
+fi
+
+# ------------------------------------------------- 5. keepalive
 if [ "$KEEPALIVE" = 1 ]; then
     echo "== keepalive" >&2
     if [ "$DRY" = 1 ]; then
@@ -450,7 +477,13 @@ if ! ifconfig "\$BRIDGE" 2>/dev/null | grep -q "member: \$LAN "; then
     fi
 fi
 
-# 3. the wired port must still carry the lab address.
+# 3. no IPv6 path around the portal: the lab is IPv4-only.
+if [ "\$(sysctl -n net.inet6.ip6.forwarding 2>/dev/null || echo 0)" != "0" ]; then
+    sysctl -w net.inet6.ip6.forwarding=0 >/dev/null 2>&1 || true
+    say "turned transit IPv6 back off"
+fi
+
+# 4. the wired port must still carry the lab address.
 cur=\$(ipconfig getifaddr "\$LAN" 2>/dev/null || true)
 if [ "\$cur" != "\$AP_IP" ]; then
     networksetup -setmanual "\$SVC" "\$AP_IP" "\$AP_NETMASK" "\$ROUTER" "\$DNS" >/dev/null 2>&1 \
