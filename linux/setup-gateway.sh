@@ -253,6 +253,10 @@ fi
 if [ "$DRY" = 1 ]; then
     echo "    [dry-run] would install $DNSMASQ_DEST with interface=$IFACE and gateway $GW_IP"
 else
+    # The drop-in directory is not created by the package on every distro
+    # (Arch's dnsmasq ships without it), and writing into a missing directory
+    # fails the whole run.
+    mkdir -p "$(dirname "$DNSMASQ_DEST")" "$(dirname "$NGINX_DEST")"
     # The gateway address is rewritten everywhere it appears - but only where
     # it is a whole address: 10.20.0.1 also prefixes the top of the DHCP
     # pool (10.20.0.150), and a naive substitution would hand the pool's top
@@ -314,6 +318,25 @@ else
     sed -E -e "s/10\\.20\\.0\\.1([^0-9]|$)/$GW_IP\\1/g" \
         "$HERE/nginx.conf" > "$NGINX_DEST"
     chmod 0644 "$NGINX_DEST"
+fi
+# Arch's nginx.conf has no include for the drop-in directory, so a config
+# written to conf.d/ is silently ignored and the front door never comes up.
+# Without this the portal is unreachable on :80 and only :8080 answers.
+NGINX_MAIN=/etc/nginx/nginx.conf
+if [ "$DRY" != 1 ] && [ -f "$NGINX_MAIN" ]; then
+    if grep -qsE '^\s*include\s+/etc/nginx/conf\.d' "$NGINX_MAIN"; then
+        echo "    $NGINX_MAIN already includes $NGINX_DEST's directory"
+    else
+        sed -i '0,/^[[:space:]]*http[[:space:]]*{/s//&\
+    include \/etc\/nginx\/conf.d\/*.conf;/' "$NGINX_MAIN"
+        if grep -qsE '^\s*include\s+/etc/nginx/conf\.d' "$NGINX_MAIN"; then
+            echo "    added 'include /etc/nginx/conf.d/*.conf;' to $NGINX_MAIN"
+        else
+            echo "    WARN: could not add the conf.d include to $NGINX_MAIN —"
+            echo "          the front door on :80 will not load. Add it by hand:"
+            echo "              include /etc/nginx/conf.d/*.conf;"
+        fi
+    fi
 fi
 if [ "$DRY" != 1 ] && command -v nginx >/dev/null 2>&1; then
     nginx -t 2>&1 | sed 's/^/    nginx: /' || true

@@ -237,6 +237,42 @@ else
     else
         echo "NOTE: --no-ipv6 given — leaving IPv6 enabled; add matching ip6 rules"
     fi
+
+    # --- ufw: the host firewall on top of ours -------------------------------
+    # ufw installs its own base chain on the input hook. With its default
+    # "deny incoming" policy it drops the front door and the DNS/DHCP the
+    # clients need BEFORE they can reach the portal at all — and because it
+    # runs at the same hook priority as our table, our accept rules never
+    # get a say. Open the lab subnet explicitly for the portal path.
+    #
+    # Only the lab subnet is opened. Everything else stays as ufw had it.
+    if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | head -1 | grep -q "Status: active"; then
+        LAB_NET="${GW_IP%.*}.0/24"
+        echo "ufw active — opening the portal path for $LAB_NET"
+        # The stale rules from the old 192.168.2.0/24 hotspot are dead weight
+        # and actively confusing (the lab moved to 10.20.0.0/24): drop them.
+        # Rule numbers shift as rules are deleted, so go from the bottom up.
+        # (ufw prints "[ 7] 8080/tcp ...", so the number has to be pulled out
+        # of the bracket - it is not awk's $1, the bracket is.)
+        for old in $(ufw status numbered 2>/dev/null \
+                        | sed -n 's/^\[[ ]*\([0-9]\{1,\}\)\].*192\.168\.2\.0\/24.*/\1/p' \
+                        | sort -rn); do
+            ufw --force delete "$old" >/dev/null 2>&1 || true
+        done
+        ufw allow from "$LAB_NET" to any port 80 proto tcp \
+            comment 'PortalGun: captive front door' >/dev/null
+        ufw allow from "$LAB_NET" to any port "$PORTAL_PORT" proto tcp \
+            comment 'PortalGun: portal server' >/dev/null
+        ufw allow from "$LAB_NET" to any port 53 proto tcp \
+            comment 'PortalGun: DNS' >/dev/null
+        ufw allow from "$LAB_NET" to any port 53 proto udp \
+            comment 'PortalGun: DNS' >/dev/null
+        ufw allow from "$LAB_NET" to any port 67 proto udp \
+            comment 'PortalGun: DHCP' >/dev/null
+        echo "ufw: opened 80, $PORTAL_PORT, 53 and 67 for $LAB_NET"
+    elif command -v ufw >/dev/null 2>&1; then
+        echo "NOTE: ufw is installed but inactive — nothing to open"
+    fi
 fi
 
 # step 5 note: NAT lives in nft above; deliberately NOT adding the iptables

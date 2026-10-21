@@ -133,6 +133,20 @@ has_carrier() {
     esac
 }
 
+# Bridge membership is set with ifconfig's bridge verbs. macOS renamed them:
+# the documented "add"/"delete" of older releases is "addm"/"deletem" now,
+# and the old spellings fail with "ifconfig: en0: bad value". Try both.
+bridge_add() {
+    ifconfig "$1" addm "$2" up 2>/dev/null \
+        || ifconfig "$1" add "$2" up 2>/dev/null
+}
+
+bridge_del() {
+    ifconfig "$1" deletem "$2" 2>/dev/null \
+        || ifconfig "$1" delete "$2" 2>/dev/null \
+        || ifconfig "$1" remove "$2" 2>/dev/null
+}
+
 bridge_has_member() {
     ifconfig "$1" 2>/dev/null | grep -q "member: $2 "
 }
@@ -224,7 +238,9 @@ detect_service() {
 current_router() {
     networksetup -getinfo "$1" 2>/dev/null \
         | awk -F': ' '/^Router:/ { print $2 }' \
-        | sed 's/^There isn.t a router set.*$//'
+        | sed 's/^There isn.t a router set.*$//' \
+        | sed 's/^(null)$//' \
+        | tr -d ' '
 }
 
 current_dns() {
@@ -312,7 +328,7 @@ if [ "$REMOVE" = 1 ]; then
         rm -f "$KEEPALIVE_PLIST" "$KEEPALIVE_BIN"
         launchctl enable "system/$BOOTPD_LABEL" 2>/dev/null || true
         if [ -e "/sys/class/net/$BRIDGE" ]; then
-            ifconfig "$BRIDGE" remove "$LAN_IFACE" 2>/dev/null || true
+            bridge_del "$BRIDGE" "$LAN_IFACE"
         fi
     fi
     echo "done. Internet Sharing itself is left alone - turn it off in" >&2
@@ -376,11 +392,33 @@ PYEOF
 start_sharing() {
     # The job is already loaded (launchd owns its Mach service), so
     # bootstrap/load do nothing: it has to be KICKSTARTED.
+    #
+    # On a SIP-protected macOS the kickstart is refused ("Operation not
+    # permitted while System Integrity Protection is engaged") and so is
+    # "launchctl kill". The sharing daemon is then only restartable by hand:
+    # System Settings > General > Sharing > Internet Sharing (off, then on).
+    # Writing the preferences alone is not enough - the daemon reads
+    # com.apple.nat.plist when it starts, not when it changes.
     launchctl enable "system/$SHARING_LABEL" 2>/dev/null || true
-    launchctl kickstart -k "system/$SHARING_LABEL" 2>/dev/null || true
+    local out
+    out="$(launchctl kickstart -k "system/$SHARING_LABEL" 2>&1 || true)"
+    case "$out" in
+        *"Operation not permitted"*|*"Not privileged"*)
+            echo "  the sharing daemon cannot be restarted from the shell" >&2
+            echo "  (SIP: $out)" >&2
+            echo >&2
+            echo "  Turn it off and on again by hand:" >&2
+            echo "    System Settings > General > Sharing > Internet Sharing" >&2
+            echo "      Share your connection from: Ethernet ($LAN_IFACE)" >&2
+            echo "      To computers using: Wi-Fi ($WIFI_IFACE)" >&2
+            echo >&2
+            ;;
+        *)
+            : ;;
+    esac
     # The bridge and the SoftAP take a moment to appear.
     local i
-    for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
         sleep 1
         [ "$(sharing_state)" = "hotspot" ] && return 0
     done
@@ -415,14 +453,18 @@ if [ "$RESTART_SHARING" = 1 ]; then
         start_sharing || true
         ICS="$(sharing_state)"
         if [ "$ICS" != "hotspot" ]; then
-            die "could not start Internet Sharing from the command line.
-  Turn it on by hand once, and re-run this script:
-    System Settings > General > Sharing > Internet Sharing
-      Share your connection from: $LAN_IFACE ($SVC)
-      To computers using: $WIFI_IFACE (Wi-Fi)
-    The hotspot then appears with the SSID and password printed below.
-  (the script wrote the same preferences into $NAT_PLIST)
-  To see what macOS did: log show --last 5m --predicate 'process == \"InternetSharing\"'"
+            echo "could not start Internet Sharing from the command line." >&2
+            echo "  Turn it on by hand once, and re-run this script:" >&2
+            echo "    System Settings > General > Sharing > Internet Sharing" >&2
+            echo "      Share your connection from: $LAN_IFACE ($SVC)" >&2
+            echo "      To computers using: $WIFI_IFACE (Wi-Fi)" >&2
+            echo "    The hotspot then appears with the SSID and password printed below." >&2
+            echo "  (the script wrote the same preferences into $NAT_PLIST)" >&2
+            echo "  To see what macOS did: log show --last 5m --predicate 'process == \"InternetSharing\"'" >&2
+            echo >&2
+            echo "  Carrying on with the rest of the setup - the bridge, the" >&2
+            echo "  disabled macOS DHCP server, the lab address and the keepalive" >&2
+            echo "  all have to be in place before the radio comes back anyway." >&2
         fi
     fi
 fi
@@ -435,12 +477,14 @@ if bridge_has_member "$BRIDGE" "$LAN_IFACE"; then
 elif [ "$DRY" = 1 ]; then
     echo "  [dry-run] would add $LAN_IFACE to $BRIDGE" >&2
 else
-    ifconfig "$BRIDGE" add "$LAN_IFACE" up \
-        || die "could not add $LAN_IFACE to $BRIDGE.
+    if bridge_add "$BRIDGE" "$LAN_IFACE"; then
+        echo "  added $LAN_IFACE to $BRIDGE" >&2
+    else
+        die "could not add $LAN_IFACE to $BRIDGE.
   Without this the two ports are separate layer-2 segments and the clients
   reach the gateway through the Mac's routing (and its NAT) instead of
   directly, which hides every client behind the Mac's address."
-    echo "  added $LAN_IFACE to $BRIDGE" >&2
+    fi
 fi
 
 # ------------------------------------------------- 2. macOS's DHCP server must be off
@@ -478,11 +522,23 @@ if [ "$CURRENT_IP" = "$AP_IP" ]; then
 elif [ "$DRY" = 1 ]; then
     echo "  [dry-run] would set $SVC to $AP_IP/$AP_NETMASK" >&2
 else
-    if ! networksetup -setmanual "$SVC" "$AP_IP" "$AP_NETMASK" "$ROUTER" "$DNS" 2>/dev/null; then
-        if ! networksetup -setmanual "$SVC" "$AP_IP" "$AP_NETMASK" "$ROUTER" "$GW_IP" 2>/dev/null; then
-            die "networksetup could not set $SVC to $AP_IP/$AP_NETMASK"
+    # networksetup writes the setting into SystemConfiguration so it survives
+    # a reboot. An empty router is a valid value and means "no router" - the
+    # Mac keeps whatever route the operator gave it.
+    if ! networksetup -setmanual "$SVC" "$AP_IP" "$AP_NETMASK" "$ROUTER" 2>/dev/null; then
+        echo "  WARN: networksetup could not set $SVC - falling back to ifconfig" >&2
+    fi
+    # configd will NOT configure an interface that is enslaved in a bridge:
+    # the bridge owns the port, so the address has to be set directly. That
+    # is the normal case here - $LAN_IFACE is a bridge member by design.
+    if [ "$(iface_ipv4 "$LAN_IFACE")" != "$AP_IP" ]; then
+        if ifconfig "$LAN_IFACE" inet "$AP_IP" netmask "$AP_NETMASK" alias 2>/dev/null \
+           || ifconfig "$LAN_IFACE" inet "$AP_IP" netmask "$AP_NETMASK" 2>/dev/null; then
+            echo "  $LAN_IFACE = $AP_IP/$AP_NETMASK (set with ifconfig: the port is a" >&2
+            echo "    bridge member, so configd does not configure it)" >&2
+        else
+            die "could not set $LAN_IFACE to $AP_IP/$AP_NETMASK"
         fi
-        echo "  $SVC = $AP_IP/$AP_NETMASK (DNS: $GW_IP)" >&2
     else
         echo "  $SVC = $AP_IP/$AP_NETMASK" >&2
     fi
@@ -553,7 +609,8 @@ launchctl bootout "system/\$BOOTPD_LABEL" 2>/dev/null || true
 
 # 2. the wired port must still be a member of the hotspot bridge.
 if ! ifconfig "\$BRIDGE" 2>/dev/null | grep -q "member: \$LAN "; then
-    if ifconfig "\$BRIDGE" add "\$LAN" up 2>/dev/null; then
+    if ifconfig "\$BRIDGE" addm "\$LAN" up 2>/dev/null \
+       || ifconfig "\$BRIDGE" add "\$LAN" up 2>/dev/null; then
         say "re-added \$LAN to \$BRIDGE"
     else
         say "could not re-add \$LAN to \$BRIDGE"
@@ -567,11 +624,22 @@ if [ "\$(sysctl -n net.inet6.ip6.forwarding 2>/dev/null || echo 0)" != "0" ]; th
 fi
 
 # 4. the wired port must still carry the lab address.
+# configd does not configure a bridge member, so ifconfig is what actually
+# puts the address back; networksetup only persists the setting.
 cur=\$(ipconfig getifaddr "\$LAN" 2>/dev/null || true)
 if [ "\$cur" != "\$AP_IP" ]; then
-    networksetup -setmanual "\$SVC" "\$AP_IP" "\$AP_NETMASK" "\$ROUTER" "\$DNS" >/dev/null 2>&1 \
-        && say "restored \$LAN address \$AP_IP" \
-        || say "could not restore \$LAN address (\$cur)"
+    networksetup -setmanual "\$SVC" "\$AP_IP" "\$AP_NETMASK" "\$ROUTER" >/dev/null 2>&1 || true
+    cur=\$(ipconfig getifaddr "\$LAN" 2>/dev/null || true)
+    if [ "\$cur" != "\$AP_IP" ]; then
+        if ifconfig "\$LAN" inet "\$AP_IP" netmask "\$AP_NETMASK" alias >/dev/null 2>&1 \
+           || ifconfig "\$LAN" inet "\$AP_IP" netmask "\$AP_NETMASK" >/dev/null 2>&1; then
+            say "restored \$LAN address \$AP_IP with ifconfig"
+        else
+            say "could not restore \$LAN address (\$cur)"
+        fi
+    else
+        say "restored \$LAN address \$AP_IP"
+    fi
 fi
 EOF
         install -m 0644 /dev/stdin "$KEEPALIVE_PLIST" <<EOF
