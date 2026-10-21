@@ -52,6 +52,27 @@ def fmt_ts(ms):
     return datetime.fromtimestamp(ms / 1000, timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
+def client_ip(handler):
+    """The real client IP, also when the request came through a local proxy.
+
+    On the Linux gateway nginx owns port 80 and proxies to 127.0.0.1:8080, so
+    the socket peer is always loopback and the real client address only
+    survives in X-Forwarded-For. Without this the sign-in handler would grant
+    127.0.0.1 instead of the phone that asked to sign in.
+
+    X-Forwarded-For is only trusted from loopback (that peer is the local
+    proxy), and the RIGHTMOST entry wins: nginx appends the address it
+    actually saw, so a client-supplied XFF header cannot spoof it.
+    """
+    peer = handler.client_address[0]
+    if peer == "127.0.0.1" or peer == "::1":
+        forwarded = handler.headers.get("x-forwarded-for") or ""
+        chain = [part.strip() for part in forwarded.split(",") if part.strip()]
+        if chain:
+            return chain[-1]
+    return peer
+
+
 def note(event):
     with LOCK:
         SEQ[0] += 1
@@ -254,7 +275,7 @@ class Handler(BaseHTTPRequestHandler):
             print("bad report:", exc)
             return
 
-        ip = self.client_address[0]
+        ip = client_ip(self)
         token = data.get("token")
         token_ok = bool(TOKEN) and token == TOKEN
         detail = data.get("detail")
@@ -285,7 +306,7 @@ class Handler(BaseHTTPRequestHandler):
         access in the nftables `auth` set. Only meaningful on the gateway box
         (CAPTIVE_AUTH must point at the helper); elsewhere it is disabled.
         """
-        ip = self.client_address[0]
+        ip = client_ip(self)
         if not CAPTIVE_AUTH_ENABLED:
             self._send(503, "login disabled: no gateway enforcement configured "
                             "(set CAPTIVE_AUTH or run on the gateway)", "text/plain")

@@ -1,11 +1,12 @@
 # PortalGun — macOS
 
-Two ways to run the portal on the Mac:
+Three ways to run the portal on the Mac:
 
 | Mode | What it is | What it forces through the portal |
 |------|-----------|----------------------------------|
 | **On-demand** (`./mac/start.sh`) | A plain HTTP server you start when you want to test | Nothing — you browse to the page yourself |
 | **Gateway** (`./mac/setup-captive.sh`) | The Mac *is* the access point: clients must sign in before they get internet | Everything, until the client IP is authorized |
+| **AP bridge** (`./mac/setup-ap-bridge.sh`) | The Mac is the *radio only* for a closed-loop lab; the Linux box is the gateway | Nothing — there is no internet behind it, by design |
 
 Pick the on-demand mode unless you specifically need the captive-portal
 behaviour (an OS sign-in sheet appearing on a phone, enforced access, a
@@ -206,6 +207,109 @@ in System Settings when the session ends.
   them (`sudo rm -f /etc/pf.anchors/captivator.*`) to keep things readable.
 - **Scope.** This forces traffic. Use a closed SSID and only devices you own
   or are authorized to test — see `../README.md`.
+
+---
+
+## Mode C — AP bridge (closed-loop lab)
+
+The lab is **closed**: the gateway, the access point and the devices under test
+are the entire network. Nothing reaches the internet, by design — the devices
+are tested against the portal, not against the web.
+
+```
+   device under test
+        |  Wi-Fi  10.20.0.50-150, gw/dns 10.20.0.1
+        v
+   [ Mac mini ]  AP + L2 bridge (no DHCP, no NAT, no routing)
+        |  en0  10.20.0.2/24
+        v
+   [ Linux gateway ]  10.20.0.1/24 — DHCP, DNS, portal :8080, nginx :80, nftables
+```
+
+### Why the Mac cannot be the gateway here
+
+macOS Internet Sharing is a router: it hands out `192.168.2.x` leases, makes
+itself the gateway and NATs the clients out through the wired port. Then the
+Linux box sees every client as one address, and the per-client sign-in grants
+(`captive-auth add <ip>`) address the wrong host. The clients have to be on
+the *same layer-2 segment* as the gateway, so the Mac has to be a dumb bridge.
+
+### What the script does
+
+```sh
+sudo ./mac/setup-ap-bridge.sh --dry-run    # preview, changes nothing
+sudo ./mac/setup-ap-bridge.sh              # apply + verify
+sudo ./mac/setup-ap-bridge.sh --status     # what the AP looks like now
+sudo ./mac/setup-ap-bridge.sh --remove     # undo (leaves Internet Sharing on)
+```
+
+1. **The hotspot stays on.** The SoftAP is the only access point macOS exposes
+   on Apple Silicon — the Wi-Fi radio cannot share its own link. If Internet
+   Sharing is not running, the script writes the sharing preferences and
+   starts the daemon; if macOS refuses, it tells you to flip the switch in
+   *System Settings → General → Sharing → Internet Sharing* (share from the
+   wired port to Wi-Fi) and re-run.
+2. **The wired port joins the hotspot bridge** (`ifconfig bridge100 add en0 up`).
+   The radio and the wired port become ONE layer-2 segment, so a client's
+   frames reach the gateway directly instead of being routed and NATed by the
+   Mac.
+3. **macOS's DHCP server (`bootpd`) is disabled**, not just stopped — in
+   launchd, so the sharing daemon cannot bring it back. This is the step that
+   actually makes the Linux box the gateway: with `bootpd` running, devices
+   take a `192.168.2.x` lease from the Mac and route through it.
+4. **The Mac's lab address** (`10.20.0.2/24` by default) goes on the wired
+   port. The *bridge* keeps macOS's own `192.168.2.1` on purpose: the sharing
+   NAT rule matches `192.168.2.0/24` while the lab traffic is `10.20.0.0/24`,
+   so nothing on the lab path is ever NATed.
+5. **A launchd keepalive** (`com.portalgun.ap-keepalive`, every 60s)
+   re-asserts steps 2-4. The sharing daemon re-applies its own configuration
+   after a link flap, a reboot or a restart of the sharing service, and a
+   single stray `192.168.2.x` lease is enough to break the lab silently.
+
+The Mac's router and DNS are left exactly as they are: the lab gateway
+resolves the OS probe names and nothing else (no upstream — it is a closed
+loop), so pointing this Mac's DNS at it would break every other lookup here.
+
+### Verify
+
+```sh
+sudo ./mac/setup-ap-bridge.sh --status
+#   bridge holds en0, bootpd disabled, gateway reachable
+
+# on the device under test:
+ipconfig getifaddr en0        # must be 10.20.0.x, NOT 192.168.2.x
+```
+
+If the device shows `192.168.2.x`, macOS's DHCP server is still answering:
+
+```sh
+sudo launchctl print-disabled system | grep bootpd
+```
+
+### The gateway side
+
+On the Linux box:
+
+```bash
+sudo ./linux/setup-gateway.sh --no-hostapd --closed-loop -i eth0 -g 10.20.0.1
+```
+
+`--no-hostapd` — this box is the gateway only, the radio is on the Mac.
+`--closed-loop` — nothing lives behind it, so no NAT is installed and DNS
+resolves only the OS probe names (which have to resolve, or the device never
+issues the probe and the sign-in sheet never opens).
+
+The portal lives on the gateway: `http://10.20.0.1/` (nginx) or
+`http://10.20.0.1:8080/` (the portal server directly).
+
+### Cleanup
+
+```sh
+sudo ./mac/setup-ap-bridge.sh --remove
+```
+
+removes the bridge membership, re-enables `bootpd` and removes the keepalive.
+Internet Sharing itself is left alone — turn it off in System Settings.
 
 ---
 

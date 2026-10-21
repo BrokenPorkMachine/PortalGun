@@ -15,6 +15,7 @@ A modular, tiered exploit verification portal for WebKit/JavaScriptCore vulnerab
 - **Per-CVE Presets**: Configurable test parameters per module
 - **macOS On-Demand Launcher**: `./mac/start.sh` for ephemeral testing
 - **macOS Gateway Mode**: `./mac/setup-captive.sh` — the Mac as the AP, pf-enforced sign-in
+- **Closed-Loop Mode**: `./mac/setup-ap-bridge.sh` + `setup-gateway.sh --no-hostapd --closed-loop` — the Mac bridges its Wi-Fi into the Linux gateway, which owns DHCP, DNS, the portal and the enforcement
 - **Linux Gateway Configs**: `./linux/` for persistent deployments
 - **Operator Dashboard**: Real-time device/module telemetry at `/dashboard`
 
@@ -55,6 +56,45 @@ sudo ./linux/setup-gateway.sh --stop
 ```
 See `linux/README.md` for the captive-portal design (redirect + forward-drop +
 sign-in lease) and `linux/setup-enforcement.sh` to apply only the firewall half.
+
+### Closed-loop lab (Linux gateway + Mac mini as the AP)
+
+The lab is **closed**: the gateway, the access point and the devices under test
+are the whole network. Nothing reaches the internet, by design — the devices
+are tested against the portal, not against the web.
+
+```
+   device under test
+        |  Wi-Fi  10.20.0.50-150, gw/dns 10.20.0.1
+        v
+   [ Mac mini ]  AP + L2 bridge (no DHCP, no NAT, no routing)
+        |  en0  10.20.0.2/24
+        v
+   [ Linux gateway ]  10.20.0.1/24 — dnsmasq (DHCP+DNS), nginx :80,
+                       portal :8080, nftables (redirect + forward-drop)
+```
+
+| Machine | Interface | Address | Role |
+|---------|-----------|---------|------|
+| Linux gateway | eth0 | `10.20.0.1/24` | DHCP, DNS, portal, enforcement |
+| Mac mini | en0 (Ethernet) | `10.20.0.2/24` | AP management address |
+| Mac mini | en1 (Wi-Fi) | — | radio only, no address, no DHCP |
+| Test devices | Wi-Fi | `10.20.0.50-150` (DHCP) | clients, gw + dns `10.20.0.1` |
+
+```bash
+# On the Mac mini: turn Internet Sharing into a pure layer-2 bridge
+sudo ./mac/setup-ap-bridge.sh --dry-run
+sudo ./mac/setup-ap-bridge.sh
+sudo ./mac/setup-ap-bridge.sh --status
+
+# On the Linux gateway: gateway only, no radio of its own, no upstream
+sudo ./linux/setup-gateway.sh --no-hostapd --closed-loop -i eth0 -g 10.20.0.1
+```
+
+`--no-hostapd` keeps the radio off this box (the Mac bridges its Wi-Fi in);
+`--closed-loop` tells the gateway that nothing lives behind it, so no NAT is
+installed and DNS resolves only the OS probe names — which have to resolve,
+or the device never issues the probe and the sign-in sheet never opens.
 
 ### Manual Server
 ```bash
@@ -97,7 +137,8 @@ linux/                    # everything Linux (persistent captive gateway)
 mac/                      # everything macOS
 ├── start.sh              # ephemeral launcher (Ctrl-C = offline)
 ├── setup-captive.sh      # gateway mode: pf enforcement for the hotspot
-└── README-macos.md       # macOS usage guide (on-demand + gateway)
+├── setup-ap-bridge.sh    # closed-loop mode: the Mac as a pure L2 access point
+└── README-macos.md       # macOS usage guide (on-demand + gateway + AP bridge)
 ```
 
 ## Module Development

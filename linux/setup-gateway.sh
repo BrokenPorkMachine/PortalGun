@@ -12,6 +12,10 @@
 # It also deploys the portal server itself to /opt/lan-check so nginx can serve
 # it, and starts it with enforcement enabled.
 #
+# With --no-hostapd the radio lives on another machine (the Mac mini bridging
+# its Wi-Fi into this box) and this script only brings up the gateway half:
+# DHCP, DNS, the front door, the portal and the firewall.
+#
 # Usage:
 #   ./setup-gateway.sh --dry-run            # show what would change (no root)
 #   sudo ./setup-gateway.sh                 # deploy + start everything
@@ -20,13 +24,21 @@
 #   sudo ./setup-gateway.sh --stop          # stop portal + AP + DHCP + firewall rules
 #
 # Options (same meanings as setup-enforcement.sh):
-#   -i IFACE   hotspot interface      (default: wlan0)
-#   -u IFACE   upstream interface     (default: default-route iface, else eth0)
+#   -i IFACE   hotspot interface      (default: wlan0, or eth0 with --no-hostapd)
+#   -u IFACE   upstream interface     (default: default-route iface)
 #   -g IP      hotspot gateway IP     (default: 10.20.0.1)
 #   -p PORT    portal port            (default: 8080)
 #   -t SECS    authorization lease    (default: 3600)
 #   --no-ipv6  leave IPv6 enabled on the hotspot (default: IPv6 is turned off,
 #              because the enforcement is IPv4-only and IPv6 would bypass it)
+#   --no-hostapd   the access point is NOT this box. Use it when another
+#              machine is the radio (e.g. the Mac mini bridging its Wi-Fi
+#              into this box): hostapd is not installed or started, and the
+#              hotspot interface is left under NetworkManager so its static
+#              gateway address survives a reboot.
+#   --closed-loop   nothing lives behind this gateway: the gateway, the
+#              access point and the devices under test are the whole network.
+#              No upstream is detected and no NAT is installed.
 #
 # Scope: only ever run this on a dedicated test box with a closed SSID. It
 # forces every client on the hotspot through the portal.
@@ -37,15 +49,16 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 die() { echo "$PROG: $*" >&2; exit 1; }
 
-usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; }
 
 # ---------------------------------------------------------------- defaults
-IFACE=wlan0
+IFACE=""
+IFACE_GIVEN=0
 UP_IFACE=""
 GW_IP=10.20.0.1
 PORTAL_PORT=8080
 LEASE=3600
-DRY=0 PERSIST=0 STATUS=0 STOP=0 NO_IPV6=0
+DRY=0 PERSIST=0 STATUS=0 STOP=0 NO_IPV6=0 NO_HOSTAPD=0 CLOSED_LOOP=0
 
 DEPLOY_DIR=/opt/lan-check
 TOKEN_FILE=/etc/lan-check-token
@@ -86,7 +99,7 @@ PYTHON_BIN=python3
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -i) [ $# -ge 2 ] || die "-i needs a value"; IFACE="$2"; shift 2;;
+        -i) [ $# -ge 2 ] || die "-i needs a value"; IFACE="$2"; IFACE_GIVEN=1; shift 2;;
         -u) [ $# -ge 2 ] || die "-u needs a value"; UP_IFACE="$2"; shift 2;;
         -g) [ $# -ge 2 ] || die "-g needs a value"; GW_IP="$2"; shift 2;;
         -p) [ $# -ge 2 ] || die "-p needs a value"; PORTAL_PORT="$2"; shift 2;;
@@ -96,10 +109,22 @@ while [ $# -gt 0 ]; do
         --status)  STATUS=1; shift;;
         --stop)    STOP=1; shift;;
         --no-ipv6) NO_IPV6=1; shift;;
+        --no-hostapd) NO_HOSTAPD=1; shift;;
+        --closed-loop) CLOSED_LOOP=1; shift;;
         -h|--help) usage; exit 0;;
         *) usage >&2; die "unknown option: $1";;
     esac
 done
+
+# The hotspot interface: the radio's own interface when this box is the AP,
+# a plain wired NIC when the AP is somebody else (see --no-hostapd).
+if [ "$IFACE_GIVEN" = 0 ]; then
+    if [ "$NO_HOSTAPD" = 1 ]; then
+        IFACE=eth0
+    else
+        IFACE=wlan0
+    fi
+fi
 
 run() {  # echo + execute (respects dry-run)
     if [ "$DRY" = 1 ]; then echo "    [dry-run] $*"; else echo "    + $*"; "$@"; fi
@@ -132,7 +157,11 @@ if [ "$STOP" = 1 ]; then
     if [ "$DRY" != 1 ]; then
         pkill -f "server.py --port $PORTAL_PORT" 2>/dev/null || true
         "$HERE/setup-enforcement.sh" --remove || true
-        for svc in hostapd dnsmasq nginx; do
+        svcs="dnsmasq nginx"
+        # Only stop the AP if this box runs it. With --no-hostapd the radio
+        # lives on another machine and is not ours to stop.
+        [ "$NO_HOSTAPD" = 1 ] || svcs="hostapd $svcs"
+        for svc in $svcs; do
             systemctl stop "$svc" 2>/dev/null || true
         done
     fi
@@ -142,7 +171,12 @@ fi
 
 # ---------------------------------------------------------------- preflight
 echo "== preflight"
-[ -f "$HERE/hostapd.conf" ] || die "missing $HERE/hostapd.conf"
+if [ "$NO_HOSTAPD" = 1 ]; then
+    echo "    mode: external access point (this box is the gateway only)"
+    echo "    hotspot interface: $IFACE (must hold $GW_IP/24)"
+else
+    [ -f "$HERE/hostapd.conf" ] || die "missing $HERE/hostapd.conf"
+fi
 [ -f "$HERE/dnsmasq.conf" ] || die "missing $HERE/dnsmasq.conf"
 [ -f "$HERE/nginx.conf" ]   || die "missing $HERE/nginx.conf"
 [ -x "$HERE/setup-enforcement.sh" ] || die "missing/executable: $HERE/setup-enforcement.sh"
@@ -150,15 +184,29 @@ echo "== preflight"
 
 if [ "$DRY" != 1 ]; then
     missing=""
-    for bin in hostapd dnsmasq nginx nft curl; do
+    for bin in dnsmasq nginx nft curl; do
         command -v "$bin" >/dev/null 2>&1 || missing="$missing $bin"
     done
+    [ "$NO_HOSTAPD" = 1 ] || command -v hostapd >/dev/null 2>&1 || missing="$missing hostapd"
     command -v "$PYTHON_BIN" >/dev/null 2>&1 \
         || command -v python3 >/dev/null 2>&1 \
         || missing="$missing python3"
     [ -z "$missing" ] || die "install missing packages first:$missing
   $PKG_HINT
   ($DISTRO detected; python as '$PYTHON_BIN')"
+
+    # The gateway address has to be on the hotspot interface BEFORE dnsmasq
+    # and nginx can work: dnsmasq hands it out as router/DNS and nginx binds
+    # it. With an external AP this interface is a plain wired NIC, so it
+    # needs a static address that survives a reboot.
+    if ! ip -4 -o addr show dev "$IFACE" 2>/dev/null | grep -q "inet $GW_IP/"; then
+        echo "NOTE: $IFACE does not hold $GW_IP/24 yet." >&2
+        echo "      One of these (pick the one your distro uses):" >&2
+        echo "        nmcli con add type ethernet ifname $IFACE con-name portalgun-lan \\" >&2
+        echo "              ipv4.method manual ipv4.addresses $GW_IP/24" >&2
+        echo "        ip addr add $GW_IP/24 dev $IFACE      # until reboot" >&2
+        die "$IFACE must carry $GW_IP/24 before the gateway can come up"
+    fi
 fi
 
 # ---------------------------------------------------------------- deploy portal
@@ -186,16 +234,41 @@ fi
 
 # ---------------------------------------------------------------- configs
 echo "== install service configs (distro: $DISTRO)"
-run install -m 0644 "$HERE/hostapd.conf" "$HOSTAPD_DEST"
-# Debian/Ubuntu point hostapd at the config via /etc/default/hostapd; Arch and
-# RHEL read /etc/hostapd/hostapd.conf directly. Only touch the Debian knob.
-if [ "$DRY" != 1 ] && [ -f /etc/default/hostapd ]; then
-    grep -q '^DAEMON_CONF=' /etc/default/hostapd \
-        && sed -i 's|^DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd \
-        || echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' >> /etc/default/hostapd
+if [ "$NO_HOSTAPD" = 1 ]; then
+    echo "    skipping hostapd: the radio lives on another machine (--no-hostapd)"
+else
+    run install -m 0644 "$HERE/hostapd.conf" "$HOSTAPD_DEST"
+    # Debian/Ubuntu point hostapd at the config via /etc/default/hostapd; Arch and
+    # RHEL read /etc/hostapd/hostapd.conf directly. Only touch the Debian knob.
+    if [ "$DRY" != 1 ] && [ -f /etc/default/hostapd ]; then
+        grep -q '^DAEMON_CONF=' /etc/default/hostapd \
+            && sed -i 's|^DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd \
+            || echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' >> /etc/default/hostapd
+    fi
 fi
 
-run install -m 0644 "$HERE/dnsmasq.conf" "$DNSMASQ_DEST"
+# dnsmasq: the interface and the gateway address are baked into the shipped
+# config, so rewrite them for this deployment instead of keeping a second
+# copy of the file to hand-edit.
+if [ "$DRY" = 1 ]; then
+    echo "    [dry-run] would install $DNSMASQ_DEST with interface=$IFACE and gateway $GW_IP"
+else
+    # The gateway address is rewritten everywhere it appears - but only where
+    # it is a whole address: 10.20.0.1 also prefixes the top of the DHCP
+    # pool (10.20.0.150), and a naive substitution would hand the pool's top
+    # address to a client.
+    sed -E -e "s|^interface=.*|interface=$IFACE|" \
+           -e "s/10\\.20\\.0\\.1([^0-9]|$)/$GW_IP\\1/g" \
+        "$HERE/dnsmasq.conf" > "$DNSMASQ_DEST"
+    chmod 0644 "$DNSMASQ_DEST"
+    # In a closed loop there is no upstream to forward to, and a lookup would
+    # leave the lab and hang. Everywhere else dnsmasq follows resolv.conf.
+    if [ "$CLOSED_LOOP" = 1 ]; then
+        grep -q '^no-resolv' "$DNSMASQ_DEST" || echo 'no-resolv' >> "$DNSMASQ_DEST"
+    else
+        sed -i '/^no-resolv/d' "$DNSMASQ_DEST"
+    fi
+fi
 # Arch ships conf-dir commented out. Without it our drop-in is never read, and
 # the portal silently gets no DHCP/DNS. Add the include idempotently.
 if [ "$DRY" != 1 ]; then
@@ -212,7 +285,10 @@ if [ "$DRY" != 1 ]; then
     # 127.0.0.53, or dnsmasq itself), clients cannot use it as a forwarder.
     # linux/dnsmasq.conf leaves upstreams unset so dnsmasq follows resolv.conf;
     # that only works if resolv.conf lists real upstream IPs.
-    if [ -r /etc/resolv.conf ] && grep -qsE '^\s*nameserver\s+127\.' /etc/resolv.conf; then
+    if [ "$CLOSED_LOOP" = 1 ]; then
+        echo "    closed loop: dnsmasq has no upstream (no-resolv); only the OS"
+        echo "                probe hostnames resolve, and they point at $GW_IP"
+    elif [ -r /etc/resolv.conf ] && grep -qsE '^\s*nameserver\s+127\.' /etc/resolv.conf; then
         echo "    WARN: /etc/resolv.conf points at a local stub resolver — clients"
         echo "          will get no usable upstream DNS. Add real servers to"
         echo "          /etc/dnsmasq.d/lan-check.conf, e.g.:"
@@ -231,16 +307,30 @@ if [ "$DRY" != 1 ] && [ "$DISTRO" != arch ] && [ -f /etc/nginx/sites-enabled/def
     echo "          default_server on :80 — nginx will refuse to start. Disable it:"
     echo "          rm /etc/nginx/sites-enabled/default"
 fi
-run install -m 0644 "$HERE/nginx.conf" "$NGINX_DEST"
+# nginx binds the gateway address; rewrite it to the -g value.
+if [ "$DRY" = 1 ]; then
+    echo "    [dry-run] would install $NGINX_DEST with listen $GW_IP:80"
+else
+    sed -E -e "s/10\\.20\\.0\\.1([^0-9]|$)/$GW_IP\\1/g" \
+        "$HERE/nginx.conf" > "$NGINX_DEST"
+    chmod 0644 "$NGINX_DEST"
+fi
 if [ "$DRY" != 1 ] && command -v nginx >/dev/null 2>&1; then
     nginx -t 2>&1 | sed 's/^/    nginx: /' || true
 fi
 
-# ---------------------------------------------------------------- NM must not manage wlan0
+# ---------------------------------------------------------------- NM must not manage the radio
 # NetworkManager will try to manage the hotspot interface and fight hostapd.
 # The ArchWiki documents this as the top cause of "hostapd won't start".
+#
+# With --no-hostapd this box does NOT run the radio, and the interface is a
+# normal wired NIC that has to stay managed: NetworkManager is what keeps its
+# static gateway address across a reboot. Marking it unmanaged there would
+# take the gateway address away on the next boot.
 NM_CONF=/etc/NetworkManager/conf.d/99-lan-check-unmanaged.conf
-if command -v nmcli >/dev/null 2>&1 && nmcli -t -f RUNNING general 2>/dev/null | grep -q running; then
+if [ "$NO_HOSTAPD" = 1 ]; then
+    echo "== NetworkManager: $IFACE stays managed (external AP, static address needed)"
+elif command -v nmcli >/dev/null 2>&1 && nmcli -t -f RUNNING general 2>/dev/null | grep -q running; then
     echo "== NetworkManager: marking $IFACE unmanaged"
     if [ "$DRY" = 1 ]; then
         echo "    [dry-run] would write $NM_CONF (unmanaged-devices=interface-name:$IFACE)"
@@ -298,7 +388,11 @@ fi
 
 # ---------------------------------------------------------------- start services
 echo "== start AP + DHCP + front door"
-run systemctl enable --now hostapd
+if [ "$NO_HOSTAPD" = 1 ]; then
+    echo "    no hostapd (--no-hostapd): the radio is on another machine"
+else
+    run systemctl enable --now hostapd
+fi
 run systemctl enable --now dnsmasq
 run systemctl restart nginx
 
@@ -308,6 +402,7 @@ ENF_ARGS=(-i "$IFACE" -g "$GW_IP" -p "$PORTAL_PORT" -t "$LEASE")
 [ -n "$UP_IFACE" ] && ENF_ARGS+=(-u "$UP_IFACE")
 [ "$PERSIST" = 1 ] && ENF_ARGS+=(--persist)
 [ "$NO_IPV6" = 1 ] && ENF_ARGS+=(--no-ipv6)
+[ "$CLOSED_LOOP" = 1 ] && ENF_ARGS+=(--closed-loop)
 if [ "$DRY" = 1 ]; then
     "$HERE/setup-enforcement.sh" --dry-run "${ENF_ARGS[@]}"
     echo
@@ -317,16 +412,28 @@ fi
 "$HERE/setup-enforcement.sh" "${ENF_ARGS[@]}"
 
 # ---------------------------------------------------------------- summary
+if [ "$NO_HOSTAPD" = 1 ]; then
+    SSID_LINE="  AP        : external — this box is the gateway only ($IFACE)"
+else
+    SSID_LINE="  SSID      : $(grep -m1 '^ssid=' "$HERE/hostapd.conf" | cut -d= -f2-)"
+fi
+if [ "$CLOSED_LOOP" = 1 ]; then
+    NET_LINE="  network   : closed loop — no upstream, no NAT. The gateway, the
+               access point and the devices under test are the whole network."
+else
+    NET_LINE="  upstream  : ${UP_IFACE:-auto-detected by setup-enforcement.sh}"
+fi
 cat <<EOF >&2
 
 gateway up.
-  SSID      : $(grep -m1 '^ssid=' "$HERE/hostapd.conf" | cut -d= -f2-)
+$SSID_LINE
   gateway   : http://$GW_IP/
   dashboard : http://$GW_IP/dashboard
   sign-in   : http://$GW_IP/login
   token     : $TOKEN   (stored in $TOKEN_FILE)
   lease     : ${LEASE}s
   ipv6      : $(if [ -d "/proc/sys/net/ipv6/conf/$IFACE" ] && [ "$(cat "/proc/sys/net/ipv6/conf/$IFACE/disable_ipv6" 2>/dev/null)" = 1 ]; then echo "disabled on $IFACE (portal is IPv4-only)"; elif [ "$NO_IPV6" = 1 ]; then echo "ENABLED — you passed --no-ipv6; add matching ip6 rules or clients bypass the portal"; else echo "check with: $PROG --status"; fi)
+$NET_LINE
 
 clients that connect get HTTP-redirected to the portal and must sign in at
 /login (token above) before anything but DNS + the portal passes.
