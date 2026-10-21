@@ -45,7 +45,8 @@ echo "==> building PortalGun $VERSION"
 echo "==> preflight checks"
 fail=0
 for f in portal/server.py portal/site/core.js portal/catalog.json \
-         mac/start.sh linux/setup-gateway.sh linux/setup-enforcement.sh; do
+         mac/start.sh mac/setup-captive.sh \
+         linux/setup-gateway.sh linux/setup-enforcement.sh; do
     [ -f "$f" ] || { echo "  MISSING: $f" >&2; fail=1; }
 done
 [ "$fail" = 0 ] || exit 1
@@ -56,6 +57,7 @@ for j in portal/site/core.js portal/tools/checkmodules.js portal/tools/testrun.j
 done
 if command -v shellcheck >/dev/null 2>&1; then
     shellcheck -s sh mac/start.sh || fail=1
+    shellcheck -s bash mac/setup-captive.sh || fail=1
     shellcheck -s bash linux/setup-gateway.sh || fail=1
     shellcheck -s bash linux/setup-enforcement.sh || fail=1
     shellcheck -s bash "$0" || fail=1
@@ -63,6 +65,7 @@ else
     echo "  (shellcheck not installed — skipping)"
 fi
 bash -n mac/start.sh || fail=1
+bash -n mac/setup-captive.sh || fail=1
 bash -n linux/setup-gateway.sh || fail=1
 bash -n linux/setup-enforcement.sh || fail=1
 
@@ -93,7 +96,12 @@ fi
 # ---------------------------------------------------------------- stage
 echo "==> staging"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+SMOKE_PID=""
+cleanup() {
+    [ -n "$SMOKE_PID" ] && kill "$SMOKE_PID" 2>/dev/null || true
+    rm -rf "$WORK" 2>/dev/null || true
+}
+trap cleanup EXIT
 NAME="PortalGun-$VERSION"
 STAGE="$WORK/$NAME"
 mkdir -p "$STAGE"
@@ -172,7 +180,8 @@ R="$TMPV/$NAME"
 # the bundle must be self-contained and complete
 for f in portal/server.py portal/site/core.js portal/site/index.html \
          portal/catalog.json portal/modules/CVE-2018-4233/index.html \
-         mac/start.sh linux/setup-gateway.sh linux/setup-enforcement.sh \
+         mac/start.sh mac/setup-captive.sh \
+         linux/setup-gateway.sh linux/setup-enforcement.sh \
          README.md LICENSE VERSION; do
     [ -f "$R/$f" ] || { echo "  tarball missing $f" >&2; exit 1; }
 done
@@ -193,11 +202,31 @@ node --check "$R/portal/site/core.js" || { echo "  bundled core.js is invalid" >
 
 # smoke-test the bundled server on a spare port
 if command -v python3 >/dev/null 2>&1; then
-    ( cd "$R/portal" && PORTAL_TOKEN=reltest python3 server.py --port 8098 >/dev/null 2>&1 & echo $! > "$TMPV/pid" )
-    sleep 2
-    code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8098/healthz 2>/dev/null || echo 000)"
-    kill "$(cat "$TMPV/pid")" 2>/dev/null || true
-    [ "$code" = "200" ] || { echo "  bundled server did not answer /healthz (got $code)" >&2; exit 1; }
+    SMOKE_PORT="$(python3 -c 'import socket
+s = socket.socket(); s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1]); s.close()')"
+    # `exec` so the subshell is REPLACED by python — otherwise $! is the
+    # subshell PID and killing it orphans the real server.
+    ( cd "$R/portal" && exec env PORTAL_TOKEN=reltest \
+        python3 server.py --port "$SMOKE_PORT" ) >/dev/null 2>&1 &
+    SMOKE_PID=$!
+    code=000
+    i=0
+    while [ "$i" -lt 30 ]; do
+        code="$(curl -s -o /dev/null -w '%{http_code}' \
+                "http://127.0.0.1:$SMOKE_PORT/healthz" 2>/dev/null || echo 000)"
+        [ "$code" = "200" ] && break
+        kill -0 "$SMOKE_PID" 2>/dev/null || break   # died early
+        i=$((i + 1))
+        sleep 0.2
+    done
+    kill "$SMOKE_PID" 2>/dev/null || true
+    wait "$SMOKE_PID" 2>/dev/null || true
+    SMOKE_PID=""
+    if [ "$code" != "200" ]; then
+        echo "  bundled server did not answer /healthz (got $code)" >&2
+        exit 1
+    fi
     echo "  bundled server serves OK (banner: $(grep -o 'PortalGun/[0-9.]*' "$R/portal/server.py" | head -1))"
 fi
 

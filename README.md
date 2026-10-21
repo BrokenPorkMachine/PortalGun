@@ -14,6 +14,7 @@ A modular, tiered exploit verification portal for WebKit/JavaScriptCore vulnerab
 - **Consent Gate**: Users must explicitly consent before running tests
 - **Per-CVE Presets**: Configurable test parameters per module
 - **macOS On-Demand Launcher**: `./mac/start.sh` for ephemeral testing
+- **macOS Gateway Mode**: `./mac/setup-captive.sh` — the Mac as the AP, pf-enforced sign-in
 - **Linux Gateway Configs**: `./linux/` for persistent deployments
 - **Operator Dashboard**: Real-time device/module telemetry at `/dashboard`
 
@@ -26,6 +27,21 @@ export PORTAL_TOKEN="your-secure-token"
 # Opens http://localhost:8080 in Safari
 # Ctrl-C to stop and go offline
 ```
+
+### macOS (Gateway — the Mac is the AP)
+```bash
+# 1. plug Ethernet into the router and turn on
+#    System Settings > General > Sharing > Internet Sharing
+#    (share Ethernet -> Wi-Fi; the Wi-Fi radio cannot share its own link)
+# 2. enforce the portal with pf
+sudo ./mac/setup-captive.sh --dry-run
+sudo ./mac/setup-captive.sh
+# 3. run the portal with the sign-in handler wired to the pf helper
+sudo ./mac/start.sh --gateway
+# Clients get a "Sign in to network" sheet; the OS probes must get a 302.
+```
+See `mac/README-macos.md` for the design (rdr + forward-drop + pf-table
+leases) and the verification steps.
 
 ### Linux (Persistent Gateway)
 ```bash
@@ -78,9 +94,10 @@ linux/                    # everything Linux (persistent captive gateway)
 ├── nginx.conf            # port-80 front door / probe redirect
 └── README.md             # gateway design + verification
 
-mac/                      # everything macOS (on-demand launcher)
+mac/                      # everything macOS
 ├── start.sh              # ephemeral launcher (Ctrl-C = offline)
-└── README-macos.md       # macOS usage guide
+├── setup-captive.sh      # gateway mode: pf enforcement for the hotspot
+└── README-macos.md       # macOS usage guide (on-demand + gateway)
 ```
 
 ## Module Development

@@ -27,7 +27,9 @@ from urllib.parse import urlparse
 HERE = os.path.dirname(os.path.abspath(__file__))
 SITE = os.path.join(HERE, "site")
 MODULES = os.path.join(HERE, "modules")
-RESULTS_FILE = os.path.join(HERE, "results.jsonl")
+# The always-on macOS daemon runs as root, so it points this at the state
+# directory instead of the repo (see mac/setup-captive.sh --portal-daemon).
+RESULTS_FILE = os.environ.get("PORTAL_RESULTS", os.path.join(HERE, "results.jsonl"))
 
 TOKEN = os.environ.get("PORTAL_TOKEN", "")
 INJECT_TOKEN = b"__PORTAL_TOKEN__"
@@ -175,8 +177,10 @@ class Handler(BaseHTTPRequestHandler):
             # Captive-network assistant probes (macOS/iOS, Android, Windows).
             # A 302 to the portal makes the OS open its sign-in sheet; answering
             # with the OS' *expected* success content would hide the portal.
+            # With gateway enforcement enabled we point at the sign-in page
+            # itself, so the sheet opens with the form rather than the catalog.
             self.send_response(302)
-            self.send_header("Location", "/")
+            self.send_header("Location", "/login" if CAPTIVE_AUTH_ENABLED else "/")
             self.send_header("content-length", "0")
             self.send_header("cache-control", "no-store")
             self.end_headers()
