@@ -210,7 +210,14 @@ sharing_state() {
     fi
     dev="$(detect_hotspot_bridge)"
     if [ -e "/sys/class/net/$dev" ] && [ -n "$(iface_ipv4 "$dev")" ]; then
-        echo hotspot
+        # The hotspot is only really up when the RADIO is in the bridge with
+        # the wired port: that is the layer-2 segment the devices under test
+        # have to share with the gateway.
+        if bridge_has_member "$dev" ap1 || bridge_has_member "$dev" "$WIFI_IFACE"; then
+            echo hotspot
+        else
+            echo nat-only
+        fi
     else
         echo nat-only
     fi
@@ -229,6 +236,27 @@ detect_service() {
         echo "$svc"; return 0
     done <<< "$devs"
     echo "Ethernet"
+}
+
+# The UUID of the network service that owns a device. macOS's sharing
+# preferences point at a service, not at a device: a stale PrimaryService
+# (the Wi-Fi service after the sharing direction is flipped) makes the
+# sharing daemon look for the uplink on the wrong service.
+service_id_for_device() {
+    python3 - "$1" <<'PYEOF' 2>/dev/null || true
+import plistlib, sys
+dev = sys.argv[1]
+try:
+    with open("/Library/Preferences/SystemConfiguration/preferences.plist", "rb") as fh:
+        plist = plistlib.load(fh)
+except Exception:
+    sys.exit(0)
+for sid, svc in (plist.get("NetworkServices") or {}).items():
+    iface = svc.get("Interface") or {}
+    if iface.get("DeviceName") == dev:
+        print(sid)
+        break
+PYEOF
 }
 
 # The wired port's current router and DNS. Both are the operator's business:
@@ -281,6 +309,7 @@ WIFI_IFACE="$(detect_wifi_iface || true)"
 [ -n "$WIFI_IFACE" ] || WIFI_IFACE=en1
 [ -n "$LAN_IFACE" ] || LAN_IFACE="$(detect_lan_iface "$WIFI_IFACE")"
 [ -n "$BRIDGE" ] || BRIDGE="$(detect_hotspot_bridge)"
+LAN_SERVICE_ID="$(service_id_for_device "$LAN_IFACE")"
 # The hotspot passphrase is remembered: re-running the script must not change
 # the password the devices are already using.
 if [ -z "$PASSPHRASE" ]; then
@@ -364,9 +393,9 @@ fi
 # Either way, the SSID and the password that the hotspot actually uses are
 # the ones in com.apple.nat.plist - which is what gets printed at the end.
 write_sharing_prefs() {
-    python3 - "$NAT_PLIST" "$LAN_IFACE" "$WIFI_IFACE" "$SSID" "$PASSPHRASE" <<'PYEOF'
+    python3 - "$NAT_PLIST" "$LAN_IFACE" "$WIFI_IFACE" "$SSID" "$PASSPHRASE" "$LAN_SERVICE_ID" <<'PYEOF'
 import plistlib, sys
-path, lan, wifi, ssid, passwd = sys.argv[1:6]
+path, lan, wifi, ssid, passwd, lan_service = sys.argv[1:7]
 try:
     with open(path, "rb") as fh:
         plist = plistlib.load(fh)
@@ -374,11 +403,23 @@ except Exception:
     plist = {}
 nat = plist.setdefault("NAT", {})
 nat["Enabled"] = 1
-nat["PrimaryInterface"] = {"Device": lan, "Enabled": 0,
+# The source of the shared connection is the wired port. This is the shape
+# macOS itself writes for "share Ethernet -> Wi-Fi":
+#   PrimaryInterface = the source, PrimaryService = the network service that
+#   owns it, SharingDevices = the radio.
+nat["PrimaryInterface"] = {"Device": lan, "Enabled": 1,
                            "HardwareKey": "", "PrimaryUserReadable": "Ethernet"}
 nat["SharingDevices"] = [wifi]
+# PrimaryService is the network service UUID of the primary interface. It
+# still points at the Wi-Fi service when the sharing direction is flipped,
+# and the daemon then looks for the uplink on the wrong service.
+if lan_service:
+    nat["PrimaryService"] = lan_service
 airport = nat.setdefault("AirPort", {})
-airport["Enabled"] = 1
+# Enabled is 0 here even though the radio IS the sharing device: the flag
+# says "the radio is the SOURCE of the sharing", and it is not - the wired
+# port is. macOS writes 0 in exactly this configuration.
+airport["Enabled"] = 0
 airport["NetworkName"] = ssid
 # The password is stored as <data> (raw bytes), not as a hex string.
 airport["NetworkPassword"] = {"length": len(passwd), "bytes": passwd.encode()}
@@ -393,13 +434,18 @@ start_sharing() {
     # The job is already loaded (launchd owns its Mach service), so
     # bootstrap/load do nothing: it has to be KICKSTARTED.
     #
-    # On a SIP-protected macOS the kickstart is refused ("Operation not
-    # permitted while System Integrity Protection is engaged") and so is
-    # "launchctl kill". The sharing daemon is then only restartable by hand:
-    # System Settings > General > Sharing > Internet Sharing (off, then on).
-    # Writing the preferences alone is not enough - the daemon reads
-    # com.apple.nat.plist when it starts, not when it changes.
+    # SIP refuses to restart a *running* protected job ("Operation not
+    # permitted while System Integrity Protection is engaged"), and it
+    # refuses "launchctl kill" for the same reason. It does allow the
+    # process to be killed outright, and once the job is stopped the
+    # kickstart goes through - which is what we need, because the daemon
+    # reads com.apple.nat.plist when it STARTS, not when the file
+    # changes. Stop it first, then start it again.
     launchctl enable "system/$SHARING_LABEL" 2>/dev/null || true
+    if pgrep -x InternetSharing >/dev/null 2>&1; then
+        killall -9 InternetSharing 2>/dev/null || true
+        sleep 1
+    fi
     local out
     out="$(launchctl kickstart -k "system/$SHARING_LABEL" 2>&1 || true)"
     case "$out" in
@@ -477,6 +523,14 @@ if bridge_has_member "$BRIDGE" "$LAN_IFACE"; then
 elif [ "$DRY" = 1 ]; then
     echo "  [dry-run] would add $LAN_IFACE to $BRIDGE" >&2
 else
+    # The sharing daemon creates the hotspot bridge when the radio comes up.
+    # If it is not there yet, create it: the same name and the same kind of
+    # interface, so the daemon adopts it instead of making a second one.
+    if [ ! -e "/sys/class/net/$BRIDGE" ]; then
+        if ifconfig "$BRIDGE" create 2>/dev/null; then
+            echo "  created $BRIDGE (the sharing daemon had not made it yet)" >&2
+        fi
+    fi
     if bridge_add "$BRIDGE" "$LAN_IFACE"; then
         echo "  added $LAN_IFACE to $BRIDGE" >&2
     else
@@ -574,7 +628,12 @@ if [ "$KEEPALIVE" = 1 ]; then
     if [ "$DRY" = 1 ]; then
         echo "  [dry-run] would install $KEEPALIVE_BIN and $KEEPALIVE_PLIST" >&2
     else
-        install -m 0755 /dev/stdin "$KEEPALIVE_BIN" <<EOF
+        TMP_KEEPALIVE="$(mktemp)"
+        # /usr/local/sbin does not exist on a stock macOS install (Homebrew
+        # only makes /usr/local/bin), and install(1) writes its temporary
+        # file into the destination directory.
+        mkdir -p "$(dirname "$KEEPALIVE_BIN")" "$(dirname "$KEEPALIVE_PLIST")"
+        cat > "$TMP_KEEPALIVE" <<EOF
 #!/bin/sh
 # portalgun-ap-keepalive - re-assert the closed-loop AP bridge state.
 #
@@ -642,7 +701,11 @@ if [ "\$cur" != "\$AP_IP" ]; then
     fi
 fi
 EOF
-        install -m 0644 /dev/stdin "$KEEPALIVE_PLIST" <<EOF
+        install -m 0755 "$TMP_KEEPALIVE" "$KEEPALIVE_BIN"
+        rm -f "$TMP_KEEPALIVE"
+
+        TMP_KEEPALIVE_PLIST="$(mktemp)"
+        cat > "$TMP_KEEPALIVE_PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -659,6 +722,9 @@ EOF
 </dict>
 </plist>
 EOF
+        install -m 0644 "$TMP_KEEPALIVE_PLIST" "$KEEPALIVE_PLIST"
+        rm -f "$TMP_KEEPALIVE_PLIST"
+
         launchctl bootout "system/$KEEPALIVE_LABEL" 2>/dev/null || true
         launchctl bootstrap system "$KEEPALIVE_PLIST" 2>/dev/null \
             || launchctl load -w "$KEEPALIVE_PLIST" 2>/dev/null \

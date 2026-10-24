@@ -264,9 +264,13 @@ if [ "$DRY" = 1 ]; then
     echo >&2
 else
     # ------------------------------------------------------------- apply
-    install -m 0644 /dev/stdin "$RULES_FILE" <<EOF
-$RULES
-EOF
+    # install(1) cannot read from /dev/stdin on macOS: it writes a temporary
+    # file into the destination directory and renames it. Use a real file.
+    mkdir -p "$(dirname "$RULES_FILE")"
+    TMP_RULES_FILE="$(mktemp)"
+    printf '%s\n' "$RULES" > "$TMP_RULES_FILE"
+    install -m 0644 "$TMP_RULES_FILE" "$RULES_FILE"
+    rm -f "$TMP_RULES_FILE"
     # syntax-check before touching the live ruleset
     if ! pfctl -n -a "$ANCHOR" -f "$RULES_FILE" >/tmp/portal-pfcheck.$$ 2>&1; then
         cat /tmp/portal-pfcheck.$$ >&2
@@ -306,7 +310,12 @@ EOF
     [ -f "$STATE_FILE" ] || : > "$STATE_FILE"
     chmod 600 "$STATE_FILE"
 
-    install -m 0755 /dev/stdin "$HELPER" <<'HELPER_EOF'
+    # /usr/local/sbin does not exist on a stock macOS install (Homebrew only
+    # makes /usr/local/bin), and install(1) writes its temporary file into the
+    # destination directory - so the directory has to exist first.
+    mkdir -p "$(dirname "$HELPER")"
+    TMP_HELPER="$(mktemp)"
+    cat > "$TMP_HELPER" <<'HELPER_EOF'
 #!/bin/sh
 # captive-auth - grant/revoke internet access through the macOS captive gateway.
 #
@@ -440,9 +449,13 @@ case "${1:-}" in
         ;;
 esac
 HELPER_EOF
+    install -m 0755 "$TMP_HELPER" "$HELPER"
+    rm -f "$TMP_HELPER"
 
     # ---------------------------------------------- lease reaper (launchd)
-    install -m 0644 /dev/stdin "$REAP_PLIST" <<EOF
+    mkdir -p "$(dirname "$REAP_PLIST")"
+    TMP_REAP_PLIST="$(mktemp)"
+    cat > "$TMP_REAP_PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -460,6 +473,9 @@ HELPER_EOF
 </dict>
 </plist>
 EOF
+    install -m 0644 "$TMP_REAP_PLIST" "$REAP_PLIST"
+    rm -f "$TMP_REAP_PLIST"
+
     launchctl bootout "system/$REAP_LABEL" 2>/dev/null || true
     launchctl bootstrap system "$REAP_PLIST" 2>/dev/null \
         || launchctl load -w "$REAP_PLIST" 2>/dev/null \
@@ -481,7 +497,9 @@ EOF
                 chmod 600 "$STATE_DIR/token"
                 echo "portal token (generated): $TOKEN" >&2
             fi
-            install -m 0644 /dev/stdin "$PORTAL_PLIST" <<EOF
+            mkdir -p "$(dirname "$PORTAL_PLIST")"
+            TMP_PORTAL_PLIST="$(mktemp)"
+            cat > "$TMP_PORTAL_PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -509,6 +527,9 @@ EOF
 </dict>
 </plist>
 EOF
+            install -m 0644 "$TMP_PORTAL_PLIST" "$PORTAL_PLIST"
+            rm -f "$TMP_PORTAL_PLIST"
+
             launchctl bootout "system/$PORTAL_LABEL" 2>/dev/null || true
             launchctl bootstrap system "$PORTAL_PLIST" 2>/dev/null \
                 || launchctl load -w "$PORTAL_PLIST" 2>/dev/null \
