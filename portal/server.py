@@ -132,7 +132,7 @@ CONTENT_TYPES = {
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "PortalGun/1.0.0"
+    server_version = "PortalGun/1.0.1"
     protocol_version = "HTTP/1.1"
 
     def _send(self, code, payload, ctype="text/html; charset=utf-8", inject=False):
