@@ -182,6 +182,17 @@ fi
 [ -x "$HERE/setup-enforcement.sh" ] || die "missing/executable: $HERE/setup-enforcement.sh"
 [ -f "$REPO/portal/server.py" ] || die "missing $REPO/portal/server.py"
 
+# The hotspot interface must exist before we touch anything: hostapd failing
+# late (after the portal is deployed) leaves a confusing half-configured box.
+if [ ! -d "/sys/class/net/$IFACE" ]; then
+    if [ "$DRY" = 1 ]; then
+        echo "    WARN: interface '$IFACE' is not present (AP adapter not attached?)"
+    else
+        die "interface '$IFACE' not found — attach the Wi-Fi adapter for the AP, or pass -i <iface>.
+  present: $(ls /sys/class/net | tr '\n' ' ')"
+    fi
+fi
+
 if [ "$DRY" != 1 ]; then
     missing=""
     for bin in dnsmasq nginx nft curl; do
@@ -218,9 +229,15 @@ for d in server.py site modules catalog.json; do
 done
 
 # portal token (reused across runs so reports stay valid)
-if [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
+if [ -r "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
     TOKEN="$(cat "$TOKEN_FILE")"
     echo "    reusing token in $TOKEN_FILE"
+elif [ -f "$TOKEN_FILE" ]; then
+    # The file exists but we cannot read it (unprivileged --dry-run as a
+    # non-root user; the real file is 0600 root). Do NOT cat it (set -e would
+    # abort mid-dry-run) and do NOT mint a second token that would not match.
+    TOKEN="(reused from $TOKEN_FILE at deploy time)"
+    echo "    token exists in $TOKEN_FILE (unreadable as $(id -un)) — deploy reuses it"
 else
     TOKEN="${PORTAL_TOKEN:-$(openssl rand -hex 12 2>/dev/null || head -c 24 /dev/urandom | xxd -p | tr -d '\n')}"
     if [ "$DRY" = 1 ]; then
@@ -234,6 +251,10 @@ fi
 
 # ---------------------------------------------------------------- configs
 echo "== install service configs (distro: $DISTRO)"
+# Drop-in directories may not exist yet — Arch's dnsmasq and nginx packages
+# ship no /etc/dnsmasq.d or /etc/nginx/conf.d — and the config writes below
+# fail mid-run (set -e) if the target dir is missing. Create them first.
+run mkdir -p "$(dirname "$HOSTAPD_DEST")" "$(dirname "$DNSMASQ_DEST")" "$(dirname "$NGINX_DEST")"
 if [ "$NO_HOSTAPD" = 1 ]; then
     echo "    skipping hostapd: the radio lives on another machine (--no-hostapd)"
 else
@@ -319,6 +340,7 @@ else
         "$HERE/nginx.conf" > "$NGINX_DEST"
     chmod 0644 "$NGINX_DEST"
 fi
+<<<<<<< HEAD
 # Arch's nginx.conf has no include for the drop-in directory, so a config
 # written to conf.d/ is silently ignored and the front door never comes up.
 # Without this the portal is unreachable on :80 and only :8080 answers.
@@ -337,6 +359,15 @@ if [ "$DRY" != 1 ] && [ -f "$NGINX_MAIN" ]; then
             echo "              include /etc/nginx/conf.d/*.conf;"
         fi
     fi
+=======
+# Arch's stock nginx.conf has NO conf.d include (Debian's does) and ships its
+# own default server. Without the include our front-door config above is
+# silently never loaded and nginx answers port 80 with the stock welcome page.
+if [ "$DRY" != 1 ] && [ -f /etc/nginx/nginx.conf ] \
+   && ! grep -qsE '^[[:space:]]*include[[:space:]]+.*conf\.d' /etc/nginx/nginx.conf; then
+    echo "    adding 'include /etc/nginx/conf.d/*.conf;' to /etc/nginx/nginx.conf"
+    sed -i '/^[[:space:]]*http[[:space:]]*{/a\    include /etc/nginx/conf.d/*.conf;' /etc/nginx/nginx.conf
+>>>>>>> 80a81a9 (Re-apply Arch/CachyOS bring-up fixes on top of the new gateway modes)
 fi
 if [ "$DRY" != 1 ] && command -v nginx >/dev/null 2>&1; then
     nginx -t 2>&1 | sed 's/^/    nginx: /' || true

@@ -210,6 +210,7 @@ sharing_state() {
     fi
     dev="$(detect_hotspot_bridge)"
     if [ -e "/sys/class/net/$dev" ] && [ -n "$(iface_ipv4 "$dev")" ]; then
+<<<<<<< HEAD
         # The hotspot is only really up when the RADIO is in the bridge with
         # the wired port: that is the layer-2 segment the devices under test
         # have to share with the gateway.
@@ -218,6 +219,9 @@ sharing_state() {
         else
             echo nat-only
         fi
+=======
+        echo hotspot
+>>>>>>> 80a81a9 (Re-apply Arch/CachyOS bring-up fixes on top of the new gateway modes)
     else
         echo nat-only
     fi
@@ -309,7 +313,10 @@ WIFI_IFACE="$(detect_wifi_iface || true)"
 [ -n "$WIFI_IFACE" ] || WIFI_IFACE=en1
 [ -n "$LAN_IFACE" ] || LAN_IFACE="$(detect_lan_iface "$WIFI_IFACE")"
 [ -n "$BRIDGE" ] || BRIDGE="$(detect_hotspot_bridge)"
+<<<<<<< HEAD
 LAN_SERVICE_ID="$(service_id_for_device "$LAN_IFACE")"
+=======
+>>>>>>> 80a81a9 (Re-apply Arch/CachyOS bring-up fixes on top of the new gateway modes)
 # The hotspot passphrase is remembered: re-running the script must not change
 # the password the devices are already using.
 if [ -z "$PASSPHRASE" ]; then
@@ -393,7 +400,11 @@ fi
 # Either way, the SSID and the password that the hotspot actually uses are
 # the ones in com.apple.nat.plist - which is what gets printed at the end.
 write_sharing_prefs() {
+<<<<<<< HEAD
     python3 - "$NAT_PLIST" "$LAN_IFACE" "$WIFI_IFACE" "$SSID" "$PASSPHRASE" "$LAN_SERVICE_ID" <<'PYEOF'
+=======
+    python3 - "$NAT_PLIST" "$LAN_IFACE" "$WIFI_IFACE" "$SSID" "$PASSPHRASE" <<'PYEOF'
+>>>>>>> 80a81a9 (Re-apply Arch/CachyOS bring-up fixes on top of the new gateway modes)
 import plistlib, sys
 path, lan, wifi, ssid, passwd, lan_service = sys.argv[1:7]
 try:
@@ -433,6 +444,7 @@ PYEOF
 start_sharing() {
     # The job is already loaded (launchd owns its Mach service), so
     # bootstrap/load do nothing: it has to be KICKSTARTED.
+<<<<<<< HEAD
     #
     # SIP refuses to restart a *running* protected job ("Operation not
     # permitted while System Integrity Protection is engaged"), and it
@@ -465,6 +477,13 @@ start_sharing() {
     # The bridge and the SoftAP take a moment to appear.
     local i
     for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+=======
+    launchctl enable "system/$SHARING_LABEL" 2>/dev/null || true
+    launchctl kickstart -k "system/$SHARING_LABEL" 2>/dev/null || true
+    # The bridge and the SoftAP take a moment to appear.
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+>>>>>>> 80a81a9 (Re-apply Arch/CachyOS bring-up fixes on top of the new gateway modes)
         sleep 1
         [ "$(sharing_state)" = "hotspot" ] && return 0
     done
@@ -499,6 +518,7 @@ if [ "$RESTART_SHARING" = 1 ]; then
         start_sharing || true
         ICS="$(sharing_state)"
         if [ "$ICS" != "hotspot" ]; then
+<<<<<<< HEAD
             echo "could not start Internet Sharing from the command line." >&2
             echo "  Turn it on by hand once, and re-run this script:" >&2
             echo "    System Settings > General > Sharing > Internet Sharing" >&2
@@ -511,6 +531,16 @@ if [ "$RESTART_SHARING" = 1 ]; then
             echo "  Carrying on with the rest of the setup - the bridge, the" >&2
             echo "  disabled macOS DHCP server, the lab address and the keepalive" >&2
             echo "  all have to be in place before the radio comes back anyway." >&2
+=======
+            die "could not start Internet Sharing from the command line.
+  Turn it on by hand once, and re-run this script:
+    System Settings > General > Sharing > Internet Sharing
+      Share your connection from: $LAN_IFACE ($SVC)
+      To computers using: $WIFI_IFACE (Wi-Fi)
+    The hotspot then appears with the SSID and password printed below.
+  (the script wrote the same preferences into $NAT_PLIST)
+  To see what macOS did: log show --last 5m --predicate 'process == \"InternetSharing\"'"
+>>>>>>> 80a81a9 (Re-apply Arch/CachyOS bring-up fixes on top of the new gateway modes)
         fi
     fi
 fi
